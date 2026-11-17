@@ -52,9 +52,12 @@ if (shot) {
     while (accumulator >= FIXED_DT) {
       game.update(FIXED_DT);
       accumulator -= FIXED_DT;
+      // Clear per-frame flags after EVERY update step, not once per frame:
+      // otherwise one key press can be read twice (pause on, then straight
+      // off again) when two fixed steps run inside a single slow frame.
+      game.input.endFrame();
     }
     game.render(ctx);
-    game.input.endFrame();
   }
   requestAnimationFrame(loop);
 }

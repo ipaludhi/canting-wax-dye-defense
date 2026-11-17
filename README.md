@@ -14,9 +14,12 @@ protect the sacred motif in the middle.
 - **Mouse (drag):** draw wax lines. Wax is limited and refills over time.
 - **1 / 2:** wax tool / erase tool. **3 or F:** freeze the dye for a few seconds.
 - **Space / P:** pause. **R:** restart. **M:** mute.
-- **Goal:** seal all motifs on the cloth to clear it. 7 cloths, a boss
-  (Naga Pewarna) on the 7th, upgrades between cloths, 3 difficulties,
-  and an Endless mode after you win.
+- **Goal:** seal all motifs on the cloth to clear it. 7 named cloths, a boss
+  (Naga Pewarna) on the 7th, pusaka (boon) picks between cloths, 3 difficulties
+  with per-difficulty best scores and grades, and an Endless mode after you win.
+- **Combo:** sealing motifs back-to-back (within 8 seconds) raises a multiplier
+  up to x5. The HUD always shows the win condition, the lose condition, the
+  next wave, and the three tools.
 - **Lose a life** if dye touches the sacred motif or covers more than 55%
   of the cloth. Lose all 3 lives and the cloth is ruined.
 
@@ -32,12 +35,16 @@ under `game/src/` are the whole game.
 
 ## Structure
 
-- `game/src/config.js` — all tuning: grid, wax, waves, scoring, palette
+- `game/src/config.js` — all tuning: grid, wax, waves, scoring, palette, combo, grades
 - `game/src/random.js` — seeded RNG so every cloth is reproducible
 - `game/src/input.js` — keyboard + mouse, held/pressed/released states
 - `game/src/audio.js` — WebAudio synthesis, no audio files
 - `game/src/cloth.js` — the grid: dye spread, wax, seal detection, boss
-- `game/src/motifs.js` — motif shapes and the Naga boss
+- `game/src/motifs.js` — motif shapes (Parang/Kawung/Mega Mendung/Ceplok) and the Naga boss
+- `game/src/motif-art.js` — batik patterns inside motifs, the sacred ornament, the Naga
+- `game/src/boons.js` — pusaka definitions (rarity, icon, effect) and picks
+- `game/src/hud.js` — HUD bar, tool bar, and title/upgrade/win panels
+- `game/src/floaters.js` — floating score text (+1.500, KOMBO x3!)
 - `game/src/particles.js` — particles and screen shake
 - `game/src/render.js` — drawing the cloth, HUD, and screens
 - `game/src/game.js` — state machine: title, play, upgrade, pause, over, win

@@ -1,17 +1,20 @@
-// CANTING: screenshot scenes behind ?shot=title|play|boss|end.
+// CANTING v2: screenshot scenes behind ?shot=play|boss|upgrade|title|win|end.
 // Each scene plays the real rules forward from a fresh cloth with a fixed
 // seed, steered by a simple autopilot that rings unsealed motifs with wax.
 // The frame is what a short game really looks like, and the same seed always
 // gives the same frame — so main.ts writes identical screenshots on every run.
+// v2 order (shots.json): 1-play is the cover — dense mid-run gameplay, not a
+// menu — then the boss, the upgrade shop, and the title poster.
 
 import { CELL, GRID, SCORE } from './config.js';
 import { EVENT_CLEAR } from './cloth.js';
-import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WIN } from './game.js';
+import { boonById } from './boons.js';
+import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE, SCREEN_UPGRADE, SCREEN_WIN } from './game.js';
 import { SACRED } from './motifs.js';
 
 const STEP = 1 / 60;
 const TITLE_SECONDS = 2;
-const PLAY_SECONDS = 18;
+const PLAY_SECONDS = 24;
 const BOSS_SECONDS = 22;
 const END_SECONDS = 240;
 
@@ -111,6 +114,65 @@ function fastForward(game, seconds, pilot) {
   }
 }
 
+// Play the current cloth with the win pilot until it clears.
+// Returns true on clear, false if the run ends first.
+function clearCloth(game) {
+  for (let i = 0; i < 480 && !game.cloth.over; i += 1) {
+    winPilot(game);
+    game.cloth.step(0.25);
+    if (game.cloth.events.some((e) => e.type === EVENT_CLEAR)) return true;
+  }
+  return false;
+}
+
+// Play a real run with the win pilot until `targetCloth` is live (clearing
+// earlier cloths, taking the regen boon each time, exactly as a player would).
+// The target cloth itself is left fresh — the caller stages the mid-battle
+// frame on it. Returns true when the target cloth is live.
+function playThrough(game, targetCloth, seed) {
+  game.startRun('batik');
+  game.seed = seed;
+  game.cloth.reset(0, game.difficulty, seed, 3, 0);
+  for (let cloth = 0; cloth < targetCloth; cloth += 1) {
+    if (!clearCloth(game)) return false;
+    game.cloth.score += SCORE.clothClear;
+    game.cloth.waxRegen *= 1.4;
+    game.boonsOwned.push('regen');
+    game.sealsTotal += game.cloth.motifs.length;
+    game.nextCloth();
+  }
+  return true;
+}
+
+// After a fast-forward, reflect the seals that really happened in this staged
+// run on the HUD: the combo is the count sealed in the last 8 seconds.
+function reflectCombo(game, sealedTimes, stagedSeconds) {
+  const recent = sealedTimes.filter((t) => stagedSeconds - t <= 8).length;
+  game.combo = Math.min(recent, 5);
+  game.comboTimer = game.combo > 0 ? 5 : 0;
+  game.maxCombo = Math.max(game.maxCombo, game.combo);
+}
+
+// Fast-forward while recording when seals happen, for reflectCombo.
+// Stops early once `stopAt` motifs are sealed, so the frame stays mid-battle
+// (one motif left) instead of showing a finished cloth.
+function fastForwardTraced(game, seconds, pilot, stopAt) {
+  const sealedTimes = [];
+  let t = 0;
+  const steps = Math.ceil(seconds / 0.25);
+  for (let i = 0; i < steps; i += 1) {
+    const before = game.cloth.sealedCount;
+    (pilot || autopilot)(game);
+    game.cloth.step(0.25);
+    t += 0.25;
+    if (game.cloth.sealedCount > before) sealedTimes.push(t);
+    if (stopAt !== undefined && game.cloth.sealedCount >= stopAt) break;
+    if (game.cloth.events.some((e) => e.type === EVENT_CLEAR)) break;
+    if (game.cloth.over) break;
+  }
+  return { sealedTimes, stagedSeconds: t };
+}
+
 /**
  * Set `game` to the named scene and return the screen to draw.
  * The game must already exist; this stages it from a fresh run with the
@@ -120,19 +182,40 @@ function fastForward(game, seconds, pilot) {
 export function stageShot(name, game, seed) {
   game.seed = seed;
   if (name === 'boss') {
-    game.startRun('batik');
-    game.cloth.reset(6, game.difficulty, seed, 3, 0);
-    fastForward(game, BOSS_SECONDS);
+    if (!playThrough(game, 6, seed)) return { screen: SCREEN_PLAY };
+    const traced = fastForwardTraced(game, BOSS_SECONDS, autopilot, 3);
+    reflectCombo(game, traced.sealedTimes, traced.stagedSeconds);
+    game.sealsTotal += game.cloth.sealedCount;
     game.banner = '';
     game.bannerTime = 0;
     return { screen: SCREEN_PLAY };
   }
   if (name === 'play') {
-    game.startRun('batik');
-    fastForward(game, PLAY_SECONDS);
+    if (!playThrough(game, 4, seed)) return { screen: SCREEN_PLAY };
+    // Cloth 5 (index 4): 3 motifs, mid-run — ring them, let the dye in.
+    const traced = fastForwardTraced(game, PLAY_SECONDS, autopilot, 2);
+    reflectCombo(game, traced.sealedTimes, traced.stagedSeconds);
+    game.sealsTotal += game.cloth.sealedCount;
     game.banner = '';
     game.bannerTime = 0;
     return { screen: SCREEN_PLAY };
+  }
+  if (name === 'upgrade') {
+    // Clear cloth 1 for real, then show the shop with three fixed boons so
+    // the frame is identical on every run (real play would shuffle them).
+    game.startRun('batik');
+    game.seed = seed;
+    game.cloth.reset(0, game.difficulty, seed, 3, 0);
+    if (!clearCloth(game)) return { screen: SCREEN_PLAY };
+    game.cloth.score += SCORE.clothClear;
+    game.sealsTotal = game.cloth.sealedCount;
+    game.upgradeChoices = [boonById('wide'), boonById('regen'), boonById('life')];
+    game.maxCombo = 1;
+    game.runSeconds = 42;
+    game.switchScreen(SCREEN_UPGRADE);
+    game.banner = '';
+    game.bannerTime = 0;
+    return { screen: SCREEN_UPGRADE };
   }
   if (name === 'win') {
     // Play a whole run to victory with the win pilot, taking the regen
@@ -141,11 +224,13 @@ export function stageShot(name, game, seed) {
     game.startRun('batik');
     game.seed = seed;
     game.cloth.reset(0, game.difficulty, seed, 3, 0);
+    let totalSteps = 0;
     for (let cloth = 0; cloth < 7; cloth += 1) {
       let cleared = false;
       for (let i = 0; i < 480 && !game.cloth.over; i += 1) {
         winPilot(game);
         game.cloth.step(0.25);
+        totalSteps += 1;
         if (game.cloth.events.some((e) => e.type === EVENT_CLEAR)) {
           cleared = true;
           break;
@@ -153,7 +238,10 @@ export function stageShot(name, game, seed) {
       }
       if (!cleared) break;
       game.cloth.score += SCORE.clothClear;
+      game.sealsTotal += game.cloth.motifs.length;
       if (cloth === 6) {
+        game.runSeconds = totalSteps * 0.25;
+        game.maxCombo = 1;
         game.finishWin();
       } else {
         game.cloth.waxRegen *= 1.4;
@@ -180,6 +268,8 @@ export function stageShot(name, game, seed) {
     return { screen: SCREEN_OVER };
   }
   // Title: the demo cloth behind the menu, stepped a little so dye shows.
+  // No sealed motif is staged here: the poster must sit on a calm backdrop,
+  // not on a gold box peeking through the panel.
   game.switchScreen(SCREEN_TITLE);
   game.cloth.waveTimer = 0.5;
   game.cloth.spreadTimer = 0.4;

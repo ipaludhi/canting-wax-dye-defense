@@ -1,13 +1,24 @@
-// CANTING: motifs — the shapes the player must seal with wax.
+// CANTING v2: motifs — the shapes the player must seal with wax.
 // A motif is a patch of cells on the cloth. It is sealed when wax closes every
-// path dye could take into it. Motifs are placed by the seeded RNG, never
-// overlapping the sacred centre or each other, so every cloth is fair.
+// path dye could take into it. Each motif is a real batik kind — Parang,
+// Kawung, Mega Mendung, Ceplok — with its own pattern, name and colour, so a
+// screenshot reader can tell the motifs apart at a glance. Motifs are placed
+// by the seeded RNG, never overlapping the sacred centre or each other.
 
 import { GRID } from './config.js';
 import { intInRange } from './random.js';
 
 // The sacred motif in the middle of the cloth. Dye touching it costs a life.
 export const SACRED = { x: 21, y: 11, w: 6, h: 6 };
+
+// The four batik kinds. A motif's kind decides both its name on screen and
+// the pattern drawn inside it (see motif-art.js).
+export const MOTIF_KINDS = [
+  { name: 'PARANG', pattern: 'parang', color: '#e74c3c' },
+  { name: 'KAWUNG', pattern: 'kawung', color: '#9b59b6' },
+  { name: 'MEGA MENDUNG', pattern: 'mendung', color: '#1abc9c' },
+  { name: 'CEPLOK', pattern: 'ceplok', color: '#e67e22' },
+];
 
 // Motif shapes: a rectangle, a ring (hollow square), and a cross.
 function rectCells(rng, w, h) {
@@ -59,6 +70,7 @@ export function placeMotifs(rng, count) {
     taken.push(box);
     const shape = SHAPES[Math.floor(rng() * SHAPES.length)];
     const cells = shape(rng, w, h).map((c) => ({ x: x + c.dx, y: y + c.dy }));
+    const kind = MOTIF_KINDS[placed.length % MOTIF_KINDS.length];
     placed.push({
       id: placed.length,
       x,
@@ -67,7 +79,9 @@ export function placeMotifs(rng, count) {
       h,
       cells,
       sealed: false,
-      color: ['#e74c3c', '#9b59b6', '#1abc9c', '#e67e22'][placed.length % 4],
+      name: kind.name,
+      pattern: kind.pattern,
+      color: kind.color,
     });
   }
   return placed;

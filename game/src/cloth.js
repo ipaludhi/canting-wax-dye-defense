@@ -5,7 +5,7 @@
 // cells is reached is sealed. The same fill also tells the game when the
 // sacred centre is threatened and how much of the cloth is dyed.
 
-import { CELL, CLOTHS, DIFFICULTIES, DYE_LIMIT, FREEZE, GRID, SCORE, WAX } from './config.js';
+import { CELL, CLOTHS, DIFFICULTIES, DYE_LIMIT, FREEZE, GRID, SCORE, WAVE_KINDS, WAX } from './config.js';
 import { makeRng, intInRange } from './random.js';
 import { placeMotifs, makeNaga, SACRED } from './motifs.js';
 
@@ -26,6 +26,9 @@ const DIRS = [
 export class Cloth {
   constructor() {
     this.grid = new Uint8Array(GRID.cols * GRID.rows);
+    // The wave that dyed each cell (0..3): the flood keeps one colour per
+    // wave, so it reads as coherent blobs, not confetti.
+    this.dyeColor = new Uint8Array(GRID.cols * GRID.rows);
     this.rng = makeRng(1);
     this.motifs = [];
     this.motifCells = new Set();
@@ -40,6 +43,7 @@ export class Cloth {
     this.difficulty = DIFFICULTIES.batik;
     this.wave = 0;
     this.wavesTotal = 0;
+    this.waveKind = 0;
     this.waveTimer = 0;
     this.spreadTimer = 0;
     this.freezeTimer = 0;
@@ -64,6 +68,7 @@ export class Cloth {
   reset(clothIndex, difficulty, seed, lives, score) {
     const spec = CLOTHS[clothIndex];
     this.grid.fill(CELL.CLOTH);
+    this.dyeColor.fill(0);
     this.rng = makeRng(seed + clothIndex * 7919);
     this.clothIndex = clothIndex;
     this.difficulty = difficulty;
@@ -85,6 +90,7 @@ export class Cloth {
     this.score = score;
     this.wave = 0;
     this.wavesTotal = spec.waves;
+    this.waveKind = 0;
     this.waveTimer = 1.5;
     this.spreadTimer = spec.spreadSeconds * difficulty.spreadMul;
     this.freezeTimer = 0;
@@ -232,6 +238,7 @@ export class Cloth {
       if (this.grid[at] !== CELL.CLOTH) continue;
       if (this.motifCells.has(at)) continue;
       this.grid[at] = CELL.DYE;
+      this.dyeColor[at] = this.waveKind;
       this.dyeCount += 1;
       placed += 1;
     }
@@ -281,6 +288,7 @@ export class Cloth {
       if (options.length === 0) continue;
       const at = options[Math.floor(this.rng() * options.length)];
       this.grid[at] = CELL.DYE;
+      this.dyeColor[at] = this.dyeColor[this.index(cell.x, cell.y)];
       this.dyeCount += 1;
       spread += 1;
     }
@@ -362,6 +370,7 @@ export class Cloth {
       this.waveTimer -= dt;
       if (this.waveTimer <= 0) {
         this.wave += 1;
+        this.waveKind = (this.wave - 1) % WAVE_KINDS.length;
         this.waveTimer = CLOTHS[this.clothIndex].dyeIntervalSeconds;
         const size = Math.round(3 * this.difficulty.waveMul) + this.clothIndex;
         this.spawnDye(size, this.wave % 4);
@@ -394,5 +403,20 @@ export class Cloth {
 
   dyeFraction() {
     return this.dyeCount / (GRID.cols * GRID.rows);
+  }
+
+  // The current wave's kind (name + colour), for the HUD.
+  waveKindName() {
+    return WAVE_KINDS[this.waveKind % WAVE_KINDS.length].name;
+  }
+
+  // The next wave's kind, for the HUD's incoming preview.
+  nextWaveName() {
+    return WAVE_KINDS[this.wave % WAVE_KINDS.length].name;
+  }
+
+  // Boss health, as motifs left to seal: each sealed motif wounds the Naga.
+  nagaHp() {
+    return { left: this.motifs.length - this.sealedCount, total: this.motifs.length };
   }
 }

@@ -1,13 +1,16 @@
-// CANTING — Wax & Dye Defense: all tuning in one place.
+// CANTING v2 — Wax & Dye Defense: all tuning in one place.
 // Every number the game uses lives here so balancing is a one-file job.
+// v2: taller canvas (HUD 2 baris + tool bar bawah), kain bernama, gelombang
+// bernama, combo, grade — semua supaya depth game kebaca dari screenshot.
 
 export const VIEW = {
   width: 960,
-  height: 616,
-  hudHeight: 56,
+  height: 668,
+  hudHeight: 64,
+  toolbarHeight: 44,
 };
 
-// The cloth is a grid of cells. The playfield is VIEW minus the HUD strip.
+// The cloth is a grid of cells. The playfield is VIEW minus HUD and toolbar.
 export const GRID = {
   cols: 48,
   rows: 28,
@@ -40,15 +43,46 @@ export const FREEZE = {
 
 export const LIVES_START = 3;
 
+// Sealing motifs back-to-back builds a combo: each seal within the window
+// raises the multiplier by one, and the multiplier applies to the seal score.
+export const COMBO = {
+  windowSeconds: 8,
+  max: 5,
+};
+
+// Grade thresholds per difficulty, on the final score of a finished run.
+// Shown on the title cards (as the S target) and on the win screen.
+export const GRADES = {
+  santai: { S: 50000, A: 38000, B: 26000 },
+  batik: { S: 60000, A: 45000, B: 30000 },
+  mahir: { S: 70000, A: 52000, B: 36000 },
+};
+
+export function gradeFor(score, difficultyKey) {
+  const g = GRADES[difficultyKey] || GRADES.batik;
+  if (score >= g.S) return 'S';
+  if (score >= g.A) return 'A';
+  if (score >= g.B) return 'B';
+  return 'C';
+}
+
+// Wave kinds cycle per wave: same spawn rules as before, but each wave now
+// has a name and a colour so the incoming threat is readable on screen.
+export const WAVE_KINDS = [
+  { name: 'TETES', color: '#c0392b', text: 'Tetes pewarna menetes dari tepi' },
+  { name: 'ARUS', color: '#8e44ad', text: 'Arus deras mendorong masuk' },
+  { name: 'BANJIR', color: '#16a085', text: 'Banjir! Tahan garis malam' },
+];
+
 // One cloth per entry: waves of dye, motifs to seal, and the boss flag.
 export const CLOTHS = [
-  { waves: 3, motifs: 2, dyeIntervalSeconds: 2.6, spreadSeconds: 0.55, boss: false },
-  { waves: 4, motifs: 2, dyeIntervalSeconds: 2.4, spreadSeconds: 0.53, boss: false },
-  { waves: 4, motifs: 3, dyeIntervalSeconds: 2.3, spreadSeconds: 0.51, boss: false },
-  { waves: 5, motifs: 3, dyeIntervalSeconds: 2.2, spreadSeconds: 0.49, boss: false },
-  { waves: 5, motifs: 3, dyeIntervalSeconds: 2.1, spreadSeconds: 0.47, boss: false },
-  { waves: 6, motifs: 4, dyeIntervalSeconds: 2.0, spreadSeconds: 0.45, boss: false },
-  { waves: 5, motifs: 4, dyeIntervalSeconds: 2.2, spreadSeconds: 0.45, boss: true },
+  { name: 'Kain Perdana', waves: 3, motifs: 2, dyeIntervalSeconds: 2.6, spreadSeconds: 0.55, boss: false },
+  { name: 'Kain Kawung', waves: 4, motifs: 2, dyeIntervalSeconds: 2.4, spreadSeconds: 0.53, boss: false },
+  { name: 'Kain Parang', waves: 4, motifs: 3, dyeIntervalSeconds: 2.3, spreadSeconds: 0.51, boss: false },
+  { name: 'Kain Mega Mendung', waves: 5, motifs: 3, dyeIntervalSeconds: 2.2, spreadSeconds: 0.49, boss: false },
+  { name: 'Kain Ceplok', waves: 5, motifs: 3, dyeIntervalSeconds: 2.1, spreadSeconds: 0.47, boss: false },
+  { name: 'Kain Sogan', waves: 6, motifs: 4, dyeIntervalSeconds: 2.0, spreadSeconds: 0.45, boss: false },
+  { name: 'Kain Naga', waves: 5, motifs: 4, dyeIntervalSeconds: 2.2, spreadSeconds: 0.45, boss: true },
 ];
 
 export const CLOTH_COUNT = CLOTHS.length;
@@ -60,16 +94,7 @@ export const DIFFICULTIES = {
   mahir: { label: 'Mahir', spreadMul: 0.8, waveMul: 1.3, waxMul: 0.85 },
 };
 
-// Upgrades offered between cloths. Each has an id, a name, and a short line.
-export const UPGRADES = [
-  { id: 'wide', name: 'Canting Lebar', text: 'Garis malam 2 sel lebih lebar.' },
-  { id: 'regen', name: 'Malam Mengalir', text: 'Malam terisi 60% lebih cepat.' },
-  { id: 'tank', name: 'Wadah Besar', text: 'Kapasitas malam +50.' },
-  { id: 'freeze', name: 'Embun Beku', text: 'Beku 2 detik lebih lama.' },
-  { id: 'life', name: 'Kain Cadangan', text: '+1 nyawa, maks 5.' },
-];
-
-// Scoring.
+// Scoring. A seal pays motif * cloth number, times the combo multiplier.
 export const SCORE = {
   motif: 500,
   waveClear: 150,
@@ -81,11 +106,20 @@ export const SCORE = {
 export const PALETTE = {
   cloth: '#1d2a5e',
   clothAlt: '#22316b',
+  clothDeep: '#141d42',
+  clothLight: '#2a3a7d',
   wax: '#f2c14e',
+  waxHi: '#ffe9a8',
   waxEdge: '#c98f1b',
   dye: ['#c0392b', '#8e44ad', '#16a085', '#d35400'],
+  dyeEdge: '#f5b7b1',
   sealed: '#f5d76e',
   sacred: '#eaf2f8',
   ink: '#f8f6ee',
   dim: '#9aa5c7',
+  gold: '#f5d76e',
+  panel: '#1d2a5e',
+  panelEdge: '#f2c14e',
+  danger: '#e74c3c',
+  ok: '#2ecc71',
 };

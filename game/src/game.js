@@ -1,16 +1,21 @@
-// CANTING: the game itself — a state machine over the cloth.
+// CANTING v2: the game itself — a state machine over the cloth.
 // Screens: title, play, upgrade, pause, over, win. Every transition goes
 // through switchScreen(), which runs the old screen's exit and the new
-// screen's enter. The cloth owns the rules; this class owns the flow,
-// the score, the upgrades, and the buttons the player clicks.
+// screen's enter. The cloth owns the rules; this class owns the flow, the
+// score, the combo, the boons, the grades, and the buttons the player clicks.
+// v2 additions: sealing motifs back-to-back builds a combo multiplier,
+// each difficulty keeps its own best score + grade, and every screen is a
+// designed panel (see hud.js) instead of a plain box.
 
-import { CELL, CLOTH_COUNT, DIFFICULTIES, GRID, SCORE, UPGRADES, VIEW } from './config.js';
+import { CELL, CLOTH_COUNT, COMBO, DIFFICULTIES, GRADES, GRID, SCORE, VIEW, gradeFor } from './config.js';
 import { Cloth, EVENT_BOSS, EVENT_CLEAR, EVENT_LIFE, EVENT_SEALED, EVENT_WAVE } from './cloth.js';
 import { Input, TOOL_ERASE, TOOL_FREEZE, TOOL_WAX } from './input.js';
 import { Sound } from './audio.js';
 import { Particles } from './particles.js';
-import { drawBanner, drawCloth, drawHud, drawPanel } from './render.js';
-import { shuffle } from './random.js';
+import { Floaters } from './floaters.js';
+import { applyBoon, offerBoons } from './boons.js';
+import { drawCloth } from './render.js';
+import { drawBanner, drawHud, drawPanel, drawTitlePanel, drawToolBar, drawUpgradePanel, drawWinPanel } from './hud.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -19,17 +24,26 @@ export const SCREEN_PAUSE = 'pause';
 export const SCREEN_OVER = 'over';
 export const SCREEN_WIN = 'win';
 
-function loadBest() {
+function loadBest(key) {
   try {
-    return Number(window.localStorage.getItem('canting-best') || 0) || 0;
+    return Number(window.localStorage.getItem(`canting-best-${key}`) || 0) || 0;
   } catch (err) {
     return 0;
   }
 }
 
-function saveBest(value) {
+function loadGrade(key) {
   try {
-    window.localStorage.setItem('canting-best', String(value));
+    return window.localStorage.getItem(`canting-grade-${key}`) || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+function saveBest(key, value, grade) {
+  try {
+    window.localStorage.setItem(`canting-best-${key}`, String(value));
+    if (grade) window.localStorage.setItem(`canting-grade-${key}`, grade);
   } catch (err) {
     // Storage is a nicety, never a failure.
   }
@@ -41,13 +55,29 @@ export class Game {
     this.input = new Input(canvas);
     this.sound = new Sound();
     this.particles = new Particles(240);
+    this.floaters = new Floaters(32);
     this.cloth = new Cloth();
     this.screen = SCREEN_TITLE;
     this.difficultyKey = 'batik';
     this.difficulty = DIFFICULTIES.batik;
     this.difficultyLabel = 'Batik';
     this.seed = 1;
-    this.best = loadBest();
+    this.bestByDiff = {
+      santai: loadBest('santai'),
+      batik: loadBest('batik'),
+      mahir: loadBest('mahir'),
+    };
+    this.gradeByDiff = {
+      santai: loadGrade('santai'),
+      batik: loadGrade('batik'),
+      mahir: loadGrade('mahir'),
+    };
+    this.gradeTargets = {
+      santai: GRADES.santai.S,
+      batik: GRADES.batik.S,
+      mahir: GRADES.mahir.S,
+    };
+    this.best = this.bestByDiff.batik;
     this.score = 0;
     this.time = 0;
     this.tool = TOOL_WAX;
@@ -56,10 +86,18 @@ export class Game {
     this.bannerTime = 0;
     this.buttons = [];
     this.upgradeChoices = [];
+    this.boonsOwned = [];
     this.endless = false;
     this.endlessRound = 0;
     this.demoPainted = false;
     this.demoTime = 0;
+    // Combo + run stats (v2): seals in quick succession multiply the score.
+    this.combo = 0;
+    this.comboTimer = 0;
+    this.maxCombo = 0;
+    this.sealsTotal = 0;
+    this.runSeconds = 0;
+    this.finalGrade = '';
     this.startCloth();
   }
 
@@ -69,6 +107,11 @@ export class Game {
 
   set score(value) {
     this.cloth.score = value;
+  }
+
+  runTimeText() {
+    const s = Math.floor(this.runSeconds);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
   switchScreen(next) {
@@ -98,6 +141,13 @@ export class Game {
     this.seed = (Math.random() * 1e9) | 0;
     this.endless = false;
     this.endlessRound = 0;
+    this.combo = 0;
+    this.comboTimer = 0;
+    this.maxCombo = 0;
+    this.sealsTotal = 0;
+    this.runSeconds = 0;
+    this.finalGrade = '';
+    this.boonsOwned = [];
     this.cloth.reset(0, this.difficulty, this.seed, 3, 0);
     this.cloth.resetUpgrades(this.difficulty);
     this.showBanner('Kain 1 — segel semua motif!');
@@ -116,8 +166,11 @@ export class Game {
 
   finishWin() {
     this.cloth.score += SCORE.boss;
-    this.best = Math.max(this.best, this.cloth.score);
-    saveBest(this.best);
+    this.finalGrade = gradeFor(this.cloth.score, this.difficultyKey);
+    this.best = Math.max(this.bestByDiff[this.difficultyKey], this.cloth.score);
+    this.bestByDiff[this.difficultyKey] = this.best;
+    this.gradeByDiff[this.difficultyKey] = this.finalGrade;
+    saveBest(this.difficultyKey, this.best, this.finalGrade);
     this.sound.gong();
     this.switchScreen(SCREEN_WIN);
   }
@@ -136,33 +189,14 @@ export class Game {
     this.bannerTime = 2.2;
   }
 
-  // Offer three upgrades the player does not already max out.
+  // Offer three boons the run can still use.
   offerUpgrades() {
-    const pool = UPGRADES.filter((u) => {
-      if (u.id === 'life' && this.cloth.lives >= 5) return false;
-      if (u.id === 'wide' && this.cloth.brush >= 1) return false;
-      return true;
-    });
-    const rng = Math.random;
-    const picked = [];
-    const copy = pool.slice();
-    while (picked.length < 3 && copy.length > 0) {
-      picked.push(copy.splice(Math.floor(rng() * copy.length), 1)[0]);
-    }
-    this.upgradeChoices = picked;
+    this.upgradeChoices = offerBoons(this.cloth, Math.random);
     this.switchScreen(SCREEN_UPGRADE);
   }
 
   applyUpgrade(id) {
-    const cloth = this.cloth;
-    if (id === 'wide') cloth.brush = 1;
-    if (id === 'regen') cloth.waxRegen *= 1.4;
-    if (id === 'tank') {
-      cloth.waxMax += 50;
-      cloth.wax = cloth.waxMax;
-    }
-    if (id === 'freeze') cloth.freezeExtra += 2;
-    if (id === 'life') cloth.lives = Math.min(5, cloth.lives + 1);
+    if (applyBoon(this.cloth, id)) this.boonsOwned.push(id);
     this.nextCloth();
   }
 
@@ -204,10 +238,32 @@ export class Game {
     return this.buttonAt(this.input.mouseX, this.input.mouseY);
   }
 
+  // A motif seal: combo grows when seals come back-to-back, the multiplier
+  // pays on top of the cloth's base seal score, and the numbers float up.
+  onSealed(motif) {
+    const base = SCORE.motif * (this.cloth.clothIndex + 1);
+    this.combo = this.comboTimer > 0 ? Math.min(this.combo + 1, COMBO.max) : 1;
+    this.comboTimer = COMBO.windowSeconds;
+    this.maxCombo = Math.max(this.maxCombo, this.combo);
+    this.sealsTotal += 1;
+    const total = base * this.combo;
+    this.cloth.score += total - base;
+    this.sound.pluck();
+    const cx = (motif.x + motif.w / 2) * GRID.cell;
+    const cy = VIEW.hudHeight + (motif.y + motif.h / 2) * GRID.cell;
+    this.particles.burst(cx, cy, '#f5d76e', 24);
+    this.floaters.add(cx, cy - 10, `+${total.toLocaleString('id-ID')}`, '#f5d76e', 20);
+    if (this.combo >= 2) {
+      this.floaters.add(cx, cy - 36, `KOMBO x${this.combo}!`, '#ff8f00', 16);
+    }
+    this.showBanner(`Motif ${motif.name} tersegel! +${total.toLocaleString('id-ID')}`);
+  }
+
   update(dt) {
     this.time += dt;
     if (this.bannerTime > 0) this.bannerTime -= dt;
     this.particles.update(dt);
+    this.floaters.update(dt);
 
     if (this.screen === SCREEN_TITLE) {
       // The backdrop is alive: dye creeps in slowly behind the menu, and
@@ -242,6 +298,7 @@ export class Game {
       if (this.input.wasPressed('Space') || this.input.wasPressed('KeyP') || this.input.wasPressed('Escape')) {
         this.switchScreen(SCREEN_PLAY);
       }
+      if (this.input.wasPressed('KeyR')) this.startRun(this.difficultyKey);
       return;
     }
 
@@ -261,6 +318,11 @@ export class Game {
     }
 
     // SCREEN_PLAY
+    this.runSeconds += dt;
+    if (this.comboTimer > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) this.combo = 0;
+    }
     if (this.input.wasPressed('Space') || this.input.wasPressed('KeyP') || this.input.wasPressed('Escape')) {
       this.switchScreen(SCREEN_PAUSE);
       return;
@@ -294,22 +356,29 @@ export class Game {
     for (let i = 0; i < this.cloth.events.length; i += 1) {
       const event = this.cloth.events[i];
       if (event.type === EVENT_SEALED) {
-        this.sound.pluck();
-        const motif = event.motif;
-        this.particles.burst((motif.x + motif.w / 2) * GRID.cell, VIEW.hudHeight + (motif.y + motif.h / 2) * GRID.cell, '#f5d76e', 24);
-        this.showBanner('Motif tersegel! +' + SCORE.motif * (this.cloth.clothIndex + 1));
+        this.onSealed(event.motif);
       } else if (event.type === EVENT_LIFE) {
         this.sound.hurt();
         this.particles.addShake(6);
+        this.combo = 0;
+        this.comboTimer = 0;
+        this.floaters.add(480, 320, '-1 NYAWA', '#e74c3c', 22);
         this.showBanner(event.reason === 'sacred' ? 'Motif suci ternoda!' : 'Kain kebanjiran pewarna!');
       } else if (event.type === EVENT_WAVE) {
-        this.showBanner(`Gelombang ${event.wave} datang!`);
+        const kind = this.cloth.waveKindName();
+        this.showBanner(`Gelombang ${event.wave} — ${kind} datang!`);
         this.sound.splash();
       } else if (event.type === EVENT_BOSS) {
         this.sound.boss();
+        const naga = this.cloth.naga;
+        if (naga) {
+          this.particles.burst(naga.x * GRID.cell, VIEW.hudHeight + 30, '#c0392b', 14);
+          this.floaters.add(naga.x * GRID.cell, VIEW.hudHeight + 70, 'NAGA MENYEMBUR!', '#e74c3c', 15);
+        }
       } else if (event.type === EVENT_CLEAR) {
         this.cloth.score += SCORE.clothClear;
         this.sound.gong();
+        this.floaters.add(480, 300, `+${SCORE.clothClear} KAIN SELESAI`, '#f5d76e', 20);
         if (this.endless) {
           this.showBanner('Kain selesai! +1000');
           this.startEndless();
@@ -322,8 +391,9 @@ export class Game {
     }
 
     if (this.cloth.over) {
-      this.best = Math.max(this.best, this.cloth.score);
-      saveBest(this.best);
+      this.best = Math.max(this.bestByDiff[this.difficultyKey], this.cloth.score);
+      this.bestByDiff[this.difficultyKey] = this.best;
+      saveBest(this.difficultyKey, this.best, this.gradeByDiff[this.difficultyKey]);
       this.sound.hurt();
       this.switchScreen(SCREEN_OVER);
     }
@@ -336,44 +406,27 @@ export class Game {
     ctx.translate(shake.x, shake.y);
     drawCloth(ctx, this.cloth, this.time);
     this.particles.render(ctx);
+    this.floaters.render(ctx);
     ctx.restore();
     drawHud(ctx, this);
+    drawToolBar(ctx, this);
     drawBanner(ctx, this.banner, Math.min(1, this.bannerTime));
 
     if (this.screen === SCREEN_TITLE) {
-      this.buttons = drawPanel(
-        ctx,
-        'CANTING',
-        ['Wax & Dye Defense — jaga kain batik dari banjir pewarna.', 'Gambar garis malam dengan mouse, segel motif, lindungi motif suci.', `Skor terbaik: ${this.best}`, 'Pilih tingkat kesulitan untuk mulai:'],
-        [
-          { id: 'santai', label: '1 — Santai (pewarna lambat)' },
-          { id: 'batik', label: '2 — Batik (normal)' },
-          { id: 'mahir', label: '3 — Mahir (pewarna deras)' },
-        ],
-      );
+      this.buttons = drawTitlePanel(ctx, this);
     } else if (this.screen === SCREEN_UPGRADE) {
-      const actions = this.upgradeChoices.map((u, i) => ({ id: u.id, label: `${i + 1} — ${u.name}: ${u.text}` }));
-      this.buttons = drawPanel(ctx, `Kain ${this.cloth.clothIndex + 1} selesai!`, ['Pilih satu peningkatan sebelum kain berikutnya:'], actions);
+      this.buttons = drawUpgradePanel(ctx, this);
     } else if (this.screen === SCREEN_PAUSE) {
       this.buttons = drawPanel(ctx, 'Jeda', ['Pewarna menunggu. Tarik napas dulu.', 'Space / P — lanjut   •   R — mulai dari awal'], []);
     } else if (this.screen === SCREEN_OVER) {
       this.buttons = drawPanel(
         ctx,
         'Kain Rusak',
-        [`Skor: ${this.cloth.score}`, `Skor terbaik: ${this.best}`, 'Klik atau tekan R untuk mencoba lagi.'],
+        [`Skor: ${this.cloth.score.toLocaleString('id-ID')}`, `Skor terbaik (${this.difficultyLabel}): ${this.best.toLocaleString('id-ID')}`, 'Klik atau tekan R untuk mencoba lagi.'],
         [],
       );
     } else if (this.screen === SCREEN_WIN) {
-      this.buttons = drawPanel(
-        ctx,
-        'Mahakarya Selesai!',
-        [`Kamu menamatkan 7 kain. Skor: ${this.cloth.score}`, `Skor terbaik: ${this.best}`],
-        [
-          { id: 'endless', label: 'Endless — bertahan selama mungkin' },
-          { id: 'again', label: 'Main lagi dari kain 1' },
-          { id: 'menu', label: 'Kembali ke menu' },
-        ],
-      );
+      this.buttons = drawWinPanel(ctx, this);
     }
   }
 }
