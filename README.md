@@ -9,6 +9,9 @@ You are a batik artisan. Dye floods in from the edges of the cloth — draw
 lines of hot wax with the mouse to hold it back, seal every motif, and
 protect the sacred motif in the middle.
 
+7 cloths · 4 motifs · 7 pusaka · 5 wave kinds · boss Naga Pewarna · 3
+difficulties + Endless.
+
 ## How to play
 
 - **Mouse (drag):** draw wax lines. Wax is limited and refills over time.
@@ -17,10 +20,13 @@ protect the sacred motif in the middle.
 - **Goal:** seal all motifs on the cloth to clear it. 7 named cloths, a boss
   (Naga Pewarna) on the 7th, pusaka (boon) picks between cloths, 3 difficulties
   with per-difficulty best scores and grades, and an Endless mode after you win.
+- **Waves:** 5 kinds — TETES (drips), ARUS (streams), BANJIR (flood),
+  REMBESAN (seeps in from inside, telegraphed with red markers 2 seconds
+  before it lands), PUSARAN (a dye ring). The HUD shows the wave queue.
 - **Combo:** sealing motifs back-to-back (within 8 seconds) raises a multiplier
   up to x5. The HUD always shows the win condition, the lose condition, the
   next wave, and the three tools.
-- **Lose a life** if dye touches the sacred motif or covers more than 55%
+- **Lose a life** if dye touches the sacred motif or covers more than 60%
   of the cloth. Lose all 3 lives and the cloth is ruined.
 
 ## Run it
@@ -35,7 +41,9 @@ under `game/src/` are the whole game.
 
 ## Structure
 
-- `game/src/config.js` — all tuning: grid, wax, waves, scoring, palette, combo, grades
+- `game/src/config.js` — all tuning: grid, wax, scoring, palette, combo, grades
+- `game/src/waves.js` — wave kinds: names, colours, spawn behaviour, rotation
+- `game/src/juice.js` — feel: trauma shake, hitstop, seal pops, easings
 - `game/src/random.js` — seeded RNG so every cloth is reproducible
 - `game/src/input.js` — keyboard + mouse, held/pressed/released states
 - `game/src/audio.js` — WebAudio synthesis, no audio files
@@ -45,8 +53,8 @@ under `game/src/` are the whole game.
 - `game/src/boons.js` — pusaka definitions (rarity, icon, effect) and picks
 - `game/src/hud.js` — HUD bar, tool bar, and title/upgrade/win panels
 - `game/src/floaters.js` — floating score text (+1.500, KOMBO x3!)
-- `game/src/particles.js` — particles and screen shake
-- `game/src/render.js` — drawing the cloth, HUD, and screens
+- `game/src/particles.js` — pooled particles (bursts, splashes)
+- `game/src/render.js` — drawing the cloth: batik field, dye flood, wax, telegraphs
 - `game/src/game.js` — state machine: title, play, upgrade, pause, over, win
 - `game/src/shots.js` — deterministic screenshot scenes (`?shot=…`)
 - `game/src/main.js` — fixed-timestep game loop and bootstrap

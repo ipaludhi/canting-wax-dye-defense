@@ -5,6 +5,9 @@
 // judge reads. It writes the same bytes on every run: it copies files as
 // they are and lets buildDossier do the summarising, with no timestamps or
 // randomness of its own anywhere in the output.
+// v3: the game grew two systems — waves.js (5 wave kinds, 2 with their own
+// spawn behaviour) and juice.js (trauma shake, hitstop, seal pops) — and the
+// screenshots now show the whole loop: play, title, boss, victory.
 
 import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,6 +17,9 @@ import { buildDossier } from './vendor/makefun-game.ts';
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const outputDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
+// The four judged frames live in screenshots/ as committed files — play,
+// title, boss, victory, in that order — and are copied as-is, so the
+// dossier the judge reads always matches the repo byte for byte.
 function handIn() {
   mkdirSync(outputDir, { recursive: true });
   cpSync(join(repoRoot, 'game'), join(outputDir, 'game'), { recursive: true });

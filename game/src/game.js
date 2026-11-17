@@ -13,6 +13,7 @@ import { Input, TOOL_ERASE, TOOL_FREEZE, TOOL_WAX } from './input.js';
 import { Sound } from './audio.js';
 import { Particles } from './particles.js';
 import { Floaters } from './floaters.js';
+import { JUICE, Juice } from './juice.js';
 import { applyBoon, offerBoons } from './boons.js';
 import { drawCloth } from './render.js';
 import { drawBanner, drawHud, drawPanel, drawTitlePanel, drawToolBar, drawUpgradePanel, drawWinPanel } from './hud.js';
@@ -56,6 +57,7 @@ export class Game {
     this.sound = new Sound();
     this.particles = new Particles(240);
     this.floaters = new Floaters(32);
+    this.juice = new Juice();
     this.cloth = new Cloth();
     this.screen = SCREEN_TITLE;
     this.difficultyKey = 'batik';
@@ -240,15 +242,20 @@ export class Game {
 
   // A motif seal: combo grows when seals come back-to-back, the multiplier
   // pays on top of the cloth's base seal score, and the numbers float up.
+  // Juice (hitstop, trauma, seal pop, rising seal pitch) is presentation
+  // only — it never touches the score, the combo, or the cloth.
   onSealed(motif) {
-    const base = SCORE.motif * (this.cloth.clothIndex + 1);
+    const base = this.cloth.sealBase();
     this.combo = this.comboTimer > 0 ? Math.min(this.combo + 1, COMBO.max) : 1;
     this.comboTimer = COMBO.windowSeconds;
     this.maxCombo = Math.max(this.maxCombo, this.combo);
     this.sealsTotal += 1;
     const total = base * this.combo;
     this.cloth.score += total - base;
-    this.sound.pluck();
+    this.juice.hitstop(JUICE.hitstopSealSeconds);
+    this.juice.addTrauma(JUICE.traumaSeal);
+    motif.popUntil = this.time + JUICE.sealPopSeconds;
+    this.sound.pluck(this.combo);
     const cx = (motif.x + motif.w / 2) * GRID.cell;
     const cy = VIEW.hudHeight + (motif.y + motif.h / 2) * GRID.cell;
     this.particles.burst(cx, cy, '#f5d76e', 24);
@@ -264,6 +271,7 @@ export class Game {
     if (this.bannerTime > 0) this.bannerTime -= dt;
     this.particles.update(dt);
     this.floaters.update(dt);
+    this.juice.update(dt);
 
     if (this.screen === SCREEN_TITLE) {
       // The backdrop is alive: dye creeps in slowly behind the menu, and
@@ -317,7 +325,9 @@ export class Game {
       return;
     }
 
-    // SCREEN_PLAY
+    // SCREEN_PLAY — hitstop first: the world freezes for a beat on a seal
+    // while the camera, the UI and the juice keep moving.
+    if (this.juice.hitstopT > 0) return;
     this.runSeconds += dt;
     if (this.comboTimer > 0) {
       this.comboTimer -= dt;
@@ -337,6 +347,7 @@ export class Game {
     if (this.input.wasPressed('Digit3') || this.input.wasPressed('KeyF')) {
       if (this.cloth.freeze()) {
         this.showBanner('Pewarna membeku!');
+        this.floaters.add(480, 300, 'BEKU!', '#7fb3ff', 20);
         this.sound.tone('seal', 880, 440, 0.3, 0.2);
       }
     }
@@ -359,7 +370,7 @@ export class Game {
         this.onSealed(event.motif);
       } else if (event.type === EVENT_LIFE) {
         this.sound.hurt();
-        this.particles.addShake(6);
+        this.juice.addTrauma(JUICE.traumaLife);
         this.combo = 0;
         this.comboTimer = 0;
         this.floaters.add(480, 320, '-1 NYAWA', '#e74c3c', 22);
@@ -370,6 +381,7 @@ export class Game {
         this.sound.splash();
       } else if (event.type === EVENT_BOSS) {
         this.sound.boss();
+        this.juice.addTrauma(JUICE.traumaBoss);
         const naga = this.cloth.naga;
         if (naga) {
           this.particles.burst(naga.x * GRID.cell, VIEW.hudHeight + 30, '#c0392b', 14);
@@ -401,9 +413,11 @@ export class Game {
 
   render(ctx) {
     ctx.clearRect(0, 0, VIEW.width, VIEW.height);
-    const shake = this.particles.offset();
+    const shake = this.juice.offset(this.time);
     ctx.save();
-    ctx.translate(shake.x, shake.y);
+    ctx.translate(VIEW.width / 2, VIEW.height / 2);
+    ctx.rotate(shake.angle);
+    ctx.translate(-VIEW.width / 2 + shake.x, -VIEW.height / 2 + shake.y);
     drawCloth(ctx, this.cloth, this.time);
     this.particles.render(ctx);
     this.floaters.render(ctx);

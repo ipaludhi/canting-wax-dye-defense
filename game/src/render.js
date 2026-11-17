@@ -83,6 +83,27 @@ export function drawCloth(ctx, cloth, time) {
     }
   }
 
+  // Pass 1b: a telegraphed seep — pulsing red diamonds on the marked cells,
+  // so the warning reads before the dye lands (wind-up, then strike).
+  if (cloth.telegraph) {
+    const pulse = 0.5 + 0.5 * Math.sin(time * 8);
+    ctx.fillStyle = `rgba(231, 76, 60, ${0.55 + 0.4 * pulse})`;
+    for (let i = 0; i < cloth.telegraph.cells.length; i += 1) {
+      const at = cloth.telegraph.cells[i];
+      const tx = at % GRID.cols;
+      const ty = Math.floor(at / GRID.cols);
+      const cxp = tx * CELL_PX + CELL_PX / 2;
+      const cyp = ORIGIN_Y + ty * CELL_PX + CELL_PX / 2;
+      ctx.beginPath();
+      ctx.moveTo(cxp, cyp - 8);
+      ctx.lineTo(cxp + 8, cyp);
+      ctx.lineTo(cxp, cyp + 8);
+      ctx.lineTo(cxp - 8, cyp);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
   // Pass 2: wax as smooth glossy strokes — round joins between neighbouring
   // wax cells, plus a bright highlight line, so a drawn line looks like
   // hot wax, not a row of squares.

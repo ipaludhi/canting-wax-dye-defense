@@ -118,9 +118,12 @@ export class Sound {
     }, 550);
   }
 
-  pluck() {
-    this.tone('seal', 660, 990, 0.25, 0.3);
-    this.tone('seal', 990, 1320, 0.3, 0.18);
+  // A seal pluck whose pitch rises with the combo (phaser skill: pitch up
+  // as combo/speed rises, so a hot streak sounds hot).
+  pluck(combo = 1) {
+    const rate = 1 + 0.06 * (combo - 1);
+    this.tone('seal', 660 * rate, 990 * rate, 0.25, 0.3);
+    this.tone('seal', 990 * rate, 1320 * rate, 0.3, 0.18);
   }
 
   wax() {

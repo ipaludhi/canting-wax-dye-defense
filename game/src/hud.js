@@ -4,7 +4,7 @@
 // over panels. The top-10 lesson: a screenshot must explain the game in
 // two seconds, so the goal, the danger and the tools are always on screen.
 
-import { CLOTHS, GRID, PALETTE, VIEW } from './config.js';
+import { CLOTHS, COMBO, GRID, PALETTE, VIEW } from './config.js';
 import { TOOL_ERASE, TOOL_FREEZE, TOOL_WAX } from './input.js';
 import { boonById } from './boons.js';
 
@@ -40,12 +40,26 @@ export function drawHud(ctx, game) {
   ctx.fillStyle = '#101736';
   ctx.fillRect(0, 0, VIEW.width, VIEW.hudHeight);
 
-  // Row 1: cloth + win pill + score + combo.
+  // Row 1: cloth + win pill + motif checklist pips + score + combo.
   ctx.fillStyle = PALETTE.ink;
   ctx.font = 'bold 15px sans-serif';
   ctx.textAlign = 'left';
   ctx.fillText(`KAIN ${cloth.clothIndex + 1}/7 · ${spec.name}`, 12, 22);
   pill(ctx, 300, 8, 210, 20, '#1e7d32', `MENANG: segel ${cloth.motifs.length} motif`, '#e8f5e9');
+  // Motif checklist: one pip per motif, gold ✓ when sealed — the win
+  // condition as a readable list, not just a pill.
+  for (let i = 0; i < cloth.motifs.length; i += 1) {
+    const m = cloth.motifs[i];
+    const px = 522 + i * 20;
+    ctx.fillStyle = m.sealed ? PALETTE.sealed : m.color;
+    ctx.fillRect(px, 10, 14, 14);
+    if (m.sealed) {
+      ctx.fillStyle = '#101736';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('✓', px + 7, 21);
+    }
+  }
   ctx.textAlign = 'right';
   ctx.font = 'bold 20px sans-serif';
   const scoreText = game.score.toLocaleString('id-ID');
@@ -56,6 +70,14 @@ export function drawHud(ctx, game) {
     ctx.fillStyle = '#ff8f00';
     ctx.font = 'bold 16px sans-serif';
     ctx.fillText(`KOMBO x${game.combo}`, 948 - scoreW - 12, 24);
+  }
+  // Combo window bar under the score: the urgency of the streak, visible.
+  if (game.comboTimer > 0 && game.combo >= 1) {
+    const frac = game.comboTimer / COMBO.windowSeconds;
+    ctx.fillStyle = '#2c3e6b';
+    ctx.fillRect(948 - scoreW, 30, scoreW, 3);
+    ctx.fillStyle = '#ff8f00';
+    ctx.fillRect(948 - scoreW, 30, scoreW * Math.max(0, Math.min(1, frac)), 3);
   }
 
   // Row 2: lives + difficulty, wave + incoming, meters.
@@ -72,7 +94,7 @@ export function drawHud(ctx, game) {
   ctx.fillText(`Gelombang ${cloth.wave}/${cloth.wavesTotal} · ${cloth.waveKindName()}`, 340, 50);
   if (cloth.wave < cloth.wavesTotal) {
     ctx.fillStyle = PALETTE.dim;
-    ctx.fillText(`Berikutnya: ${cloth.nextWaveName()}`, 520, 50);
+    ctx.fillText(`ANTRIAN: ${cloth.nextWaveName()} → ${cloth.nextNextWaveName()}`, 520, 50);
   }
   // Lose pill, right side row 2.
   pill(ctx, 620, 34, 150, 18, '#922b21', 'KALAH: suci ternoda / >60%', '#fdecea');
@@ -311,7 +333,7 @@ export function drawTitlePanel(ctx, game) {
   ctx.fillText('▶  KLIK KARTU ATAU TEKAN 1 / 2 / 3 UNTUK MULAI', cx, ORIGIN_Y + 388);
   ctx.fillStyle = PALETTE.dim;
   ctx.font = '12px sans-serif';
-  ctx.fillText('7 kain · boss Naga Pewarna di kain 7 · pusaka antar kain · Endless setelah menang', cx, ORIGIN_Y + 410);
+  ctx.fillText('7 kain · 4 motif · 7 pusaka · 5 jenis gelombang · boss Naga di kain 7 · Endless setelah menang', cx, ORIGIN_Y + 410);
   return buttons;
 }
 

@@ -4,6 +4,7 @@
 // deterministic (no Math.random here — the only motion is the time pulse).
 
 import { GRID, PALETTE } from './config.js';
+import { JUICE, easeOutBack } from './juice.js';
 
 const CELL_PX = GRID.cell;
 
@@ -13,6 +14,17 @@ export function drawMotifPattern(ctx, motif, originY, time) {
   const y0 = originY + motif.y * CELL_PX;
   const w = motif.w * CELL_PX;
   const h = motif.h * CELL_PX;
+  // Seal pop: the box scales up with an overshoot ease for a beat after it
+  // seals (squash & stretch — the #1 life-giver). Presentation only.
+  let scale = 1;
+  if (motif.popUntil && time < motif.popUntil) {
+    const t = 1 - (motif.popUntil - time) / JUICE.sealPopSeconds;
+    scale = 1 + JUICE.sealPopScale * easeOutBack(Math.min(1, Math.max(0, t)));
+  }
+  ctx.save();
+  ctx.translate(x0 + w / 2, y0 + h / 2);
+  ctx.scale(scale, scale);
+  ctx.translate(-(x0 + w / 2), -(y0 + h / 2));
   ctx.save();
   ctx.beginPath();
   ctx.rect(x0, y0, w, h);
@@ -97,13 +109,16 @@ export function drawMotifPattern(ctx, motif, originY, time) {
   ctx.fill();
   ctx.fillStyle = motif.sealed ? PALETTE.sealed : '#dfe6ff';
   ctx.fillText(motif.name, x0 + w / 2, y0 + h + 16);
+  ctx.restore();
 }
 
 // The sacred centre: a gold medallion on indigo, not a white box.
 // Layered diamonds + a pulsing halo, with the name written beneath it.
 export function drawSacred(ctx, sacred, originY, time) {
+  // Idle life: the whole medallion breathes ±2px on a 1.2s cycle.
+  const bob = Math.sin(time * 5.24) * 2;
   const x0 = sacred.x * CELL_PX;
-  const y0 = originY + sacred.y * CELL_PX;
+  const y0 = originY + sacred.y * CELL_PX + bob;
   const w = sacred.w * CELL_PX;
   const h = sacred.h * CELL_PX;
   const cx = x0 + w / 2;

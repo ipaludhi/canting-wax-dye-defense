@@ -1,6 +1,7 @@
-// CANTING: particles and screen feedback.
+// CANTING: particles.
 // A fixed pool of particles — nothing is allocated while the game runs.
-// Bursts mark sealed motifs, splashes mark dye, and a shake marks lost lives.
+// Bursts mark sealed motifs, splashes mark dye. Screen shake lives in
+// juice.js now (trauma model); this file only owns the sparks.
 
 export class Particles {
   constructor(capacity) {
@@ -9,7 +10,6 @@ export class Particles {
     for (let i = 0; i < capacity; i += 1) {
       this.items.push({ alive: false, x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, size: 2, color: '#ffffff' });
     }
-    this.shake = 0;
   }
 
   spawn(x, y, vx, vy, life, size, color) {
@@ -47,10 +47,6 @@ export class Particles {
     }
   }
 
-  addShake(amount) {
-    this.shake = Math.min(10, this.shake + amount);
-  }
-
   update(dt) {
     for (let i = 0; i < this.capacity; i += 1) {
       const p = this.items[i];
@@ -65,7 +61,6 @@ export class Particles {
       p.vx *= 0.96;
       p.vy *= 0.96;
     }
-    if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 24);
   }
 
   render(ctx) {
@@ -77,14 +72,5 @@ export class Particles {
       ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
     }
     ctx.globalAlpha = 1;
-  }
-
-  // Current shake offset in pixels, for the render step to apply.
-  offset() {
-    if (this.shake <= 0) return { x: 0, y: 0 };
-    return {
-      x: (Math.random() * 2 - 1) * this.shake,
-      y: (Math.random() * 2 - 1) * this.shake,
-    };
   }
 }

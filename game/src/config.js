@@ -1,7 +1,9 @@
-// CANTING v2 — Wax & Dye Defense: all tuning in one place.
+// CANTING v3 — Wax & Dye Defense: all tuning in one place.
 // Every number the game uses lives here so balancing is a one-file job.
 // v2: taller canvas (HUD 2 baris + tool bar bawah), kain bernama, gelombang
 // bernama, combo, grade — semua supaya depth game kebaca dari screenshot.
+// v3: wave kinds moved to waves.js (5 kinds, 2 with their own spawn
+// behaviour); dye palette grew to 5 colours to match.
 
 export const VIEW = {
   width: 960,
@@ -66,13 +68,8 @@ export function gradeFor(score, difficultyKey) {
   return 'C';
 }
 
-// Wave kinds cycle per wave: same spawn rules as before, but each wave now
-// has a name and a colour so the incoming threat is readable on screen.
-export const WAVE_KINDS = [
-  { name: 'TETES', color: '#c0392b', text: 'Tetes pewarna menetes dari tepi' },
-  { name: 'ARUS', color: '#8e44ad', text: 'Arus deras mendorong masuk' },
-  { name: 'BANJIR', color: '#16a085', text: 'Banjir! Tahan garis malam' },
-];
+// Wave kinds live in waves.js now (v3): 5 kinds, each with its own spawn
+// behaviour, so a wave reads as a different threat, not a different colour.
 
 // One cloth per entry: waves of dye, motifs to seal, and the boss flag.
 export const CLOTHS = [
@@ -111,7 +108,7 @@ export const PALETTE = {
   wax: '#f2c14e',
   waxHi: '#ffe9a8',
   waxEdge: '#c98f1b',
-  dye: ['#c0392b', '#8e44ad', '#16a085', '#d35400'],
+  dye: ['#c0392b', '#8e44ad', '#16a085', '#d35400', '#2980b9'],
   dyeEdge: '#f5b7b1',
   sealed: '#f5d76e',
   sacred: '#eaf2f8',

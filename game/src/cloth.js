@@ -5,7 +5,8 @@
 // cells is reached is sealed. The same fill also tells the game when the
 // sacred centre is threatened and how much of the cloth is dyed.
 
-import { CELL, CLOTHS, DIFFICULTIES, DYE_LIMIT, FREEZE, GRID, SCORE, WAVE_KINDS, WAX } from './config.js';
+import { CELL, CLOTHS, DIFFICULTIES, DYE_LIMIT, FREEZE, GRID, SCORE, WAX } from './config.js';
+import { WAVE_KINDS, kindFor } from './waves.js';
 import { makeRng, intInRange } from './random.js';
 import { placeMotifs, makeNaga, SACRED } from './motifs.js';
 
@@ -54,6 +55,10 @@ export class Cloth {
     this.events = [];
     this.sealedCount = 0;
     this.over = false;
+    this.scoreMul = 1;
+    // A telegraphed seep: { cells, timer, size } — the warning markers the
+    // player sees for 2 seconds before dye lands inside the cloth.
+    this.telegraph = null;
   }
 
   index(x, y) {
@@ -100,6 +105,7 @@ export class Cloth {
     this.events = [];
     this.sealedCount = 0;
     this.over = false;
+    this.telegraph = null;
   }
 
   // Clear all upgrades (fresh run). Called once per run, never between cloths.
@@ -109,7 +115,13 @@ export class Cloth {
     this.waxMax = Math.round(WAX.max * difficulty.waxMul);
     this.waxRegen = WAX.regenPerSecond;
     this.freezeExtra = 0;
+    this.scoreMul = 1;
     this.wax = this.waxMax;
+  }
+
+  // The base score of one seal on this cloth, before the combo multiplier.
+  sealBase() {
+    return SCORE.motif * (this.clothIndex + 1) * this.scoreMul;
   }
 
   // Flood fill from the border through every cell that is not wax.
@@ -155,7 +167,7 @@ export class Cloth {
       if (!open) {
         motif.sealed = true;
         this.sealedCount += 1;
-        this.score += SCORE.motif * (this.clothIndex + 1);
+        this.score += this.sealBase();
         this.events.push({ type: EVENT_SEALED, motif });
       }
     }
@@ -212,8 +224,80 @@ export class Cloth {
     return true;
   }
 
+  // One dye spawn, by the current wave's behaviour. Every kind lands the
+  // same number of cells — the tide stays linear — only WHERE differs.
+  spawnDye(count) {
+    const kind = kindFor(this.waveKind);
+    if (kind.spawn === 'vortex') return this.spawnVortex(count);
+    if (kind.spawn === 'seep') return this.spawnSeep(count);
+    return this.spawnEdge(count);
+  }
+
+  // PUSARAN: dye lands on a ring around one random interior point, so the
+  // flood starts as a circle the player must cut, not a border creep.
+  spawnVortex(count) {
+    let cx = 0;
+    let cy = 0;
+    for (let tries = 0; tries < 20; tries += 1) {
+      cx = intInRange(this.rng, 8, GRID.cols - 9);
+      cy = intInRange(this.rng, 6, GRID.rows - 7);
+      if (!this.motifCells.has(this.index(cx, cy))) break;
+    }
+    let placed = 0;
+    for (let i = 0; i < count; i += 1) {
+      const angle = (i / Math.max(1, count)) * Math.PI * 2;
+      const x = Math.round(cx + Math.cos(angle) * 4);
+      const y = Math.round(cy + Math.sin(angle) * 3);
+      if (!this.inBounds(x, y)) continue;
+      const at = this.index(x, y);
+      if (this.grid[at] !== CELL.CLOTH || this.motifCells.has(at)) continue;
+      this.grid[at] = CELL.DYE;
+      this.dyeColor[at] = this.waveKind;
+      this.dyeCount += 1;
+      placed += 1;
+    }
+    return placed;
+  }
+
+  // REMBESAN: dye lands on the telegraphed patch. Called only when the
+  // telegraph fires, never directly — the warning always comes first.
+  spawnSeep(count) {
+    if (!this.telegraph) return 0;
+    let placed = 0;
+    for (let i = 0; i < this.telegraph.cells.length && placed < count; i += 1) {
+      const at = this.telegraph.cells[i];
+      if (this.grid[at] !== CELL.CLOTH || this.motifCells.has(at)) continue;
+      this.grid[at] = CELL.DYE;
+      this.dyeColor[at] = this.waveKind;
+      this.dyeCount += 1;
+      placed += 1;
+    }
+    return placed;
+  }
+
+  // Arm a seep telegraph: pick a patch of cells just outside a random
+  // unsealed motif and warn the player for 2 seconds before dye lands.
+  // Wind-up before strike — the threat is always readable first.
+  armTelegraph(size) {
+    const open = this.motifs.filter((m) => !m.sealed);
+    const motif = open.length > 0 ? open[Math.floor(this.rng() * open.length)] : null;
+    if (!motif) {
+      this.spawnEdge(size);
+      return;
+    }
+    const tx = motif.x + Math.floor(motif.w / 2) + (this.rng() < 0.5 ? -1 : 1) * (Math.floor(motif.w / 2) + 2);
+    const ty = motif.y + Math.floor(motif.h / 2);
+    const cells = [];
+    for (let y = ty - 1; y <= ty + 1; y += 1) {
+      for (let x = tx - 1; x <= tx + 1; x += 1) {
+        if (this.inBounds(x, y)) cells.push(this.index(x, y));
+      }
+    }
+    this.telegraph = { cells, timer: 2.0, size };
+  }
+
   // One dye spawn on the border, at a random edge cell.
-  spawnDye(count, colorIndex) {
+  spawnEdge(count) {
     const edge = Math.floor(this.rng() * 4);
     let placed = 0;
     let tries = 0;
@@ -365,6 +449,17 @@ export class Cloth {
       return;
     }
 
+    // A telegraphed seep counts down and lands — the warning always precedes
+    // the strike, so the player can wax over the marked patch first.
+    if (this.telegraph) {
+      this.telegraph.timer -= dt;
+      if (this.telegraph.timer <= 0) {
+        const size = this.telegraph.size;
+        this.telegraph = null;
+        this.spawnSeep(size);
+      }
+    }
+
     // Waves arrive on a timer until the cloth's quota is spent.
     if (this.wave < this.wavesTotal) {
       this.waveTimer -= dt;
@@ -373,7 +468,8 @@ export class Cloth {
         this.waveKind = (this.wave - 1) % WAVE_KINDS.length;
         this.waveTimer = CLOTHS[this.clothIndex].dyeIntervalSeconds;
         const size = Math.round(3 * this.difficulty.waveMul) + this.clothIndex;
-        this.spawnDye(size, this.wave % 4);
+        if (kindFor(this.waveKind).spawn === 'seep') this.armTelegraph(size);
+        else this.spawnDye(size);
         this.events.push({ type: EVENT_WAVE, wave: this.wave });
       }
     }
@@ -407,12 +503,17 @@ export class Cloth {
 
   // The current wave's kind (name + colour), for the HUD.
   waveKindName() {
-    return WAVE_KINDS[this.waveKind % WAVE_KINDS.length].name;
+    return kindFor(this.waveKind).name;
   }
 
   // The next wave's kind, for the HUD's incoming preview.
   nextWaveName() {
-    return WAVE_KINDS[this.wave % WAVE_KINDS.length].name;
+    return kindFor(this.wave).name;
+  }
+
+  // The wave after that — the HUD shows a two-wave queue.
+  nextNextWaveName() {
+    return kindFor(this.wave + 1).name;
   }
 
   // Boss health, as motifs left to seal: each sealed motif wounds the Naga.
