@@ -59,6 +59,7 @@ export class Game {
     this.endless = false;
     this.endlessRound = 0;
     this.demoPainted = false;
+    this.demoTime = 0;
     this.startCloth();
   }
 
@@ -77,10 +78,10 @@ export class Game {
   }
 
   // A fresh cloth for the title backdrop, with a decorative wax ring.
+  // Waves run on a real timer so dye creeps in behind the menu.
   startCloth() {
     this.cloth.reset(0, this.difficulty, this.seed, 3, 0);
-    this.cloth.waveTimer = 9999;
-    this.cloth.spreadTimer = 9999;
+    this.cloth.waveTimer = 2;
     for (let a = 0; a < 40; a += 1) {
       const angle = (a / 40) * Math.PI * 2;
       const cx = 24 + Math.round(Math.cos(angle) * 10);
@@ -98,6 +99,7 @@ export class Game {
     this.endless = false;
     this.endlessRound = 0;
     this.cloth.reset(0, this.difficulty, this.seed, 3, 0);
+    this.cloth.resetUpgrades(this.difficulty);
     this.showBanner('Kain 1 — segel semua motif!');
     this.switchScreen(SCREEN_PLAY);
   }
@@ -208,6 +210,14 @@ export class Game {
     this.particles.update(dt);
 
     if (this.screen === SCREEN_TITLE) {
+      // The backdrop is alive: dye creeps in slowly behind the menu, and
+      // the cloth is rebuilt every half minute so it never floods over.
+      this.demoTime += dt;
+      this.cloth.step(dt * 0.5);
+      if (this.demoTime > 30 || this.cloth.over) {
+        this.demoTime = 0;
+        this.startCloth();
+      }
       const clicked = this.clickButtons();
       if (clicked === 'santai' || clicked === 'batik' || clicked === 'mahir') {
         this.sound.unlock();

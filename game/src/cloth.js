@@ -78,10 +78,9 @@ export class Cloth {
       }
     }
     this.naga = spec.boss ? makeNaga() : null;
-    this.waxMax = WAX.max;
+    // Refill wax to the (possibly upgraded) capacity. Upgrades live on the
+    // cloth across levels; only a fresh run clears them (resetUpgrades).
     this.wax = this.waxMax;
-    this.waxRegen = WAX.regenPerSecond;
-    this.brush = 0;
     this.lives = lives;
     this.score = score;
     this.wave = 0;
@@ -95,6 +94,16 @@ export class Cloth {
     this.events = [];
     this.sealedCount = 0;
     this.over = false;
+  }
+
+  // Clear all upgrades (fresh run). Called once per run, never between cloths.
+  // The difficulty's wax factor applies to the base capacity here, once.
+  resetUpgrades(difficulty = DIFFICULTIES.batik) {
+    this.brush = 0;
+    this.waxMax = Math.round(WAX.max * difficulty.waxMul);
+    this.waxRegen = WAX.regenPerSecond;
+    this.freezeExtra = 0;
+    this.wax = this.waxMax;
   }
 
   // Flood fill from the border through every cell that is not wax.

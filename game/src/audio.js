@@ -11,6 +11,8 @@ export class Sound {
     this.sfx = null;
     this.muted = false;
     this.playing = new Map();
+    this.ambientTimer = null;
+    this.ambientStep = 0;
   }
 
   // Create the context on first gesture. Safe to call repeatedly.
@@ -28,6 +30,7 @@ export class Sound {
     this.sfx = this.ctx.createGain();
     this.sfx.gain.value = 0.9;
     this.sfx.connect(this.master);
+    this.startAmbient();
   }
 
   toggleMute() {
@@ -81,6 +84,38 @@ export class Sound {
     gain.connect(this.sfx);
     src.onended = () => this.playing.set('splash', (this.playing.get('splash') || 1) - 1);
     src.start(now);
+  }
+
+  // A soft plucked note for the ambient loop.
+  note(freq, seconds, volume) {
+    if (!this.ctx || this.muted) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now);
+    gain.gain.setValueAtTime(volume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + seconds);
+    osc.connect(gain);
+    gain.connect(this.sfx);
+    osc.start(now);
+    osc.stop(now + seconds + 0.02);
+  }
+
+  // A gamelan-like pentatonic loop: a 16-step pattern, one soft note every
+  // other step, a low gong every two rounds. Starts on the first gesture
+  // and stays quiet under the sound effects.
+  startAmbient() {
+    if (this.ambientTimer || !this.ctx) return;
+    const scale = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 659.25];
+    const pattern = [0, 2, 4, 2, 5, 4, 2, 1, 0, 2, 4, 6, 5, 4, 2, 0];
+    this.ambientTimer = setInterval(() => {
+      if (this.muted || !this.ctx) return;
+      const step = this.ambientStep % 16;
+      this.ambientStep += 1;
+      if (step % 2 === 0) this.note(scale[pattern[step]], 1.4, 0.08);
+      if (this.ambientStep % 32 === 0) this.tone('gong', 130, 65, 2.0, 0.12);
+    }, 550);
   }
 
   pluck() {

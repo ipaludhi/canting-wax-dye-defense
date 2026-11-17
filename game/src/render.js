@@ -20,32 +20,63 @@ function dyeColor(x, y) {
 
 // Draw the cloth grid: wax, dye, motifs, sacred centre, boss.
 export function drawCloth(ctx, cloth, time) {
+  const waxCells = [];
   for (let y = 0; y < GRID.rows; y += 1) {
     for (let x = 0; x < GRID.cols; x += 1) {
       const px = x * CELL_PX;
       const py = ORIGIN_Y + y * CELL_PX;
       const kind = cloth.grid[y * GRID.cols + x];
       if (kind === CELL.WAX) {
-        ctx.fillStyle = PALETTE.wax;
-        ctx.fillRect(px + 1, py + 1, CELL_PX - 2, CELL_PX - 2);
+        waxCells.push({ x, y });
       } else if (kind === CELL.DYE) {
         ctx.fillStyle = dyeColor(x, y);
-        ctx.globalAlpha = 0.92;
+        ctx.globalAlpha = 0.86 + 0.1 * Math.sin(time * 2 + x * 0.7 + y * 0.9);
         ctx.fillRect(px, py, CELL_PX, CELL_PX);
         ctx.globalAlpha = 1;
       } else {
         ctx.fillStyle = cellColor(x, y);
         ctx.fillRect(px, py, CELL_PX, CELL_PX);
+        // A faint batik dot woven into every plain cell.
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillRect(px + 9, py + 9, 2, 2);
       }
+    }
+  }
+
+  // Wax as smooth strokes: round joins between neighbouring wax cells,
+  // so a drawn line looks like a line, not a row of squares.
+  ctx.strokeStyle = PALETTE.wax;
+  ctx.fillStyle = PALETTE.wax;
+  ctx.lineWidth = 13;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < waxCells.length; i += 1) {
+    const a = waxCells[i];
+    const ax = a.x * CELL_PX + CELL_PX / 2;
+    const ay = ORIGIN_Y + a.y * CELL_PX + CELL_PX / 2;
+    ctx.beginPath();
+    ctx.arc(ax, ay, 8, 0, Math.PI * 2);
+    ctx.fill();
+    for (let d = 0; d < 2; d += 1) {
+      const nx = a.x + (d === 0 ? 1 : 0);
+      const ny = a.y + (d === 0 ? 0 : 1);
+      if (nx >= GRID.cols || ny >= GRID.rows) continue;
+      if (cloth.grid[ny * GRID.cols + nx] !== CELL.WAX) continue;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(nx * CELL_PX + CELL_PX / 2, ORIGIN_Y + ny * CELL_PX + CELL_PX / 2);
+      ctx.stroke();
     }
   }
 
   // Sacred centre: a pale square the player must protect.
   const pulse = 0.6 + 0.4 * Math.sin(time * 2);
   ctx.fillStyle = PALETTE.sacred;
+  ctx.shadowColor = '#f5d76e';
+  ctx.shadowBlur = 8 + 10 * pulse;
   ctx.globalAlpha = 0.9;
   ctx.fillRect(SACRED.x * CELL_PX, ORIGIN_Y + SACRED.y * CELL_PX, SACRED.w * CELL_PX, SACRED.h * CELL_PX);
   ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
   ctx.strokeStyle = '#b9770e';
   ctx.lineWidth = 2;
   ctx.strokeRect(SACRED.x * CELL_PX + 2, ORIGIN_Y + SACRED.y * CELL_PX + 2, SACRED.w * CELL_PX - 4, SACRED.h * CELL_PX - 4);
@@ -54,11 +85,13 @@ export function drawCloth(ctx, cloth, time) {
   ctx.textAlign = 'center';
   ctx.fillText('MOTIF SUCI', (SACRED.x + SACRED.w / 2) * CELL_PX, ORIGIN_Y + (SACRED.y + SACRED.h / 2) * CELL_PX + 5);
 
-  // Motifs: coloured outlines, gold fill once sealed.
+  // Motifs: coloured outlines, gold fill and a glow once sealed.
   for (let i = 0; i < cloth.motifs.length; i += 1) {
     const motif = cloth.motifs[i];
     ctx.strokeStyle = motif.sealed ? PALETTE.sealed : motif.color;
     ctx.lineWidth = motif.sealed ? 4 : 2;
+    ctx.shadowColor = motif.sealed ? PALETTE.sealed : 'transparent';
+    ctx.shadowBlur = motif.sealed ? 14 : 0;
     ctx.globalAlpha = motif.sealed ? 1 : 0.7 + 0.3 * pulse;
     ctx.strokeRect(motif.x * CELL_PX + 1, ORIGIN_Y + motif.y * CELL_PX + 1, motif.w * CELL_PX - 2, motif.h * CELL_PX - 2);
     if (motif.sealed) {
@@ -68,6 +101,7 @@ export function drawCloth(ctx, cloth, time) {
     }
     ctx.globalAlpha = 1;
   }
+  ctx.shadowBlur = 0;
 
   // The boss serpent, when the cloth has one.
   if (cloth.naga && cloth.naga.alive) {
