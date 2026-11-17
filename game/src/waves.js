@@ -8,11 +8,11 @@
 // cloth must be telegraphed before it strikes (wind-up → strike).
 
 export const WAVE_KINDS = [
-  { name: 'TETES', color: '#c0392b', spawn: 'edge', text: 'Tetes pewarna menetes dari tepi' },
-  { name: 'ARUS', color: '#8e44ad', spawn: 'edge', text: 'Arus deras mendorong masuk' },
-  { name: 'BANJIR', color: '#16a085', spawn: 'edge', text: 'Banjir! Tahan garis malam' },
-  { name: 'REMBESAN', color: '#d35400', spawn: 'seep', text: 'Rembesan! Pewarna muncul dari dalam' },
-  { name: 'PUSARAN', color: '#2980b9', spawn: 'vortex', text: 'Pusaran! Pewarna berputar masuk' },
+  { name: 'TETES', foe: 'Si Tetes', color: '#c0392b', spawn: 'edge', text: 'Tetes pewarna menetes dari tepi' },
+  { name: 'ARUS', foe: 'Arus Liar', color: '#8e44ad', spawn: 'edge', text: 'Arus deras mendorong masuk' },
+  { name: 'BANJIR', foe: 'Banjir Besar', color: '#16a085', spawn: 'edge', text: 'Banjir! Tahan garis malam' },
+  { name: 'REMBESAN', foe: 'Si Rembes', color: '#d35400', spawn: 'seep', text: 'Rembesan! Pewarna muncul dari dalam' },
+  { name: 'PUSARAN', foe: 'Pusaran', color: '#2980b9', spawn: 'vortex', text: 'Pusaran! Pewarna berputar masuk' },
 ];
 
 // The kind of the wave with this 0-based index. Rotation is the mix: a

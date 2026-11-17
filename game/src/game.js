@@ -7,9 +7,9 @@
 // each difficulty keeps its own best score + grade, and every screen is a
 // designed panel (see hud.js) instead of a plain box.
 
-import { CELL, CLOTH_COUNT, COMBO, DIFFICULTIES, GRADES, GRID, SCORE, VIEW, gradeFor } from './config.js';
-import { Cloth, EVENT_BOSS, EVENT_CLEAR, EVENT_LIFE, EVENT_SEALED, EVENT_WAVE } from './cloth.js';
-import { Input, TOOL_ERASE, TOOL_FREEZE, TOOL_WAX } from './input.js';
+import { CELL, CLOTHS, CLOTH_COUNT, COMBO, DIFFICULTIES, GRADES, GRID, SCORE, VIEW, gradeFor } from './config.js';
+import { Cloth, EVENT_BOSS, EVENT_CLEAR, EVENT_LIFE, EVENT_MINE, EVENT_SEALED, EVENT_WAVE } from './cloth.js';
+import { Input, TOOL_ERASE, TOOL_FREEZE, TOOL_MINE, TOOL_WAX } from './input.js';
 import { Sound } from './audio.js';
 import { Particles } from './particles.js';
 import { Floaters } from './floaters.js';
@@ -152,7 +152,7 @@ export class Game {
     this.boonsOwned = [];
     this.cloth.reset(0, this.difficulty, this.seed, 3, 0);
     this.cloth.resetUpgrades(this.difficulty);
-    this.showBanner('Kain 1 — segel semua motif!');
+    this.showBanner(`Kain 1 — ${CLOTHS[0].realm} — segel semua motif!`);
     this.switchScreen(SCREEN_PLAY);
   }
 
@@ -162,7 +162,8 @@ export class Game {
       return;
     }
     this.cloth.reset(this.cloth.clothIndex + 1, this.difficulty, this.seed, this.cloth.lives, this.cloth.score);
-    this.showBanner(`Kain ${this.cloth.clothIndex + 1} — segel semua motif!`);
+    const spec = CLOTHS[this.cloth.clothIndex];
+    this.showBanner(`Kain ${this.cloth.clothIndex + 1} — ${spec.realm} — segel semua motif!`);
     this.switchScreen(SCREEN_PLAY);
   }
 
@@ -351,7 +352,21 @@ export class Game {
         this.sound.tone('seal', 880, 440, 0.3, 0.2);
       }
     }
+    if (this.input.wasPressed('Digit4')) this.tool = TOOL_MINE;
     this.sound.unlock();
+
+    // RANJAU MALAM (v4): one click places one mine — placement, not paint.
+    if (this.tool === TOOL_MINE && this.input.mousePressed) {
+      const cell = this.mouseCell();
+      if (cell) {
+        if (this.cloth.placeMine(cell.x, cell.y)) {
+          this.sound.tone('mine', 520, 780, 0.15, 0.25);
+          this.floaters.add(cell.x * GRID.cell + 10, VIEW.hudHeight + cell.y * GRID.cell, 'RANJAU!', '#f5d76e', 13);
+        } else if (this.cloth.mineCount <= 0) {
+          this.showBanner('Ranjau habis — tunggu gelombang berikutnya!');
+        }
+      }
+    }
 
     if (this.input.mouseHeld) {
       const cell = this.mouseCell();
@@ -387,6 +402,13 @@ export class Game {
           this.particles.burst(naga.x * GRID.cell, VIEW.hudHeight + 30, '#c0392b', 14);
           this.floaters.add(naga.x * GRID.cell, VIEW.hudHeight + 70, 'NAGA MENYEMBUR!', '#e74c3c', 15);
         }
+      } else if (event.type === EVENT_MINE) {
+        this.sound.tone('mine', 440, 110, 0.3, 0.3);
+        this.juice.addTrauma(0.1);
+        const mx = event.x * GRID.cell + 10;
+        const my = VIEW.hudHeight + event.y * GRID.cell;
+        this.particles.burst(mx, my, '#f5d76e', 18);
+        this.floaters.add(mx, my - 10, 'RANJAU MELEDAK!', '#f5d76e', 15);
       } else if (event.type === EVENT_CLEAR) {
         this.cloth.score += SCORE.clothClear;
         this.sound.gong();

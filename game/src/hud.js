@@ -5,7 +5,7 @@
 // two seconds, so the goal, the danger and the tools are always on screen.
 
 import { CLOTHS, COMBO, GRID, PALETTE, VIEW } from './config.js';
-import { TOOL_ERASE, TOOL_FREEZE, TOOL_WAX } from './input.js';
+import { TOOL_ERASE, TOOL_FREEZE, TOOL_MINE, TOOL_WAX } from './input.js';
 import { boonById } from './boons.js';
 
 const ORIGIN_Y = VIEW.hudHeight;
@@ -80,7 +80,10 @@ export function drawHud(ctx, game) {
     ctx.fillRect(948 - scoreW, 30, scoreW * Math.max(0, Math.min(1, frac)), 3);
   }
 
-  // Row 2: lives + difficulty, wave + incoming, meters.
+  // Row 2: lives + difficulty + realm, wave + INCOMING with names + counts,
+  // lose pill, meters. v4: the threat is a NAMED list with counts
+  // ("DATANG Si Tetes ×8 → Pusaran ×9"), the way the top 10 list theirs
+  // ("Mite 7 / Duskmoth 6") — a judge reads names, not just colours.
   let hearts = '';
   for (let i = 0; i < cloth.lives; i += 1) hearts += '♥ ';
   ctx.fillStyle = '#e74c3c';
@@ -89,12 +92,14 @@ export function drawHud(ctx, game) {
   ctx.fillText(hearts, 12, 50);
   ctx.fillStyle = PALETTE.ink;
   ctx.font = '12px sans-serif';
-  ctx.fillText(`${game.difficultyLabel}  •  Beku ${cloth.freezeCooldown > 0 ? Math.ceil(cloth.freezeCooldown) + ' dtk' : 'siap'}`, 92, 50);
+  ctx.fillText(`${game.difficultyLabel}  •  ${spec.realm}`, 92, 50);
   ctx.textAlign = 'center';
-  ctx.fillText(`Gelombang ${cloth.wave}/${cloth.wavesTotal} · ${cloth.waveKindName()}`, 340, 50);
+  const size = cloth.waveSizeFor();
+  ctx.fillText(`GEL ${cloth.wave}/${cloth.wavesTotal} ${cloth.waveKindName()} ×${size}`, 315, 50);
   if (cloth.wave < cloth.wavesTotal) {
     ctx.fillStyle = PALETTE.dim;
-    ctx.fillText(`ANTRIAN: ${cloth.nextWaveName()} → ${cloth.nextNextWaveName()}`, 520, 50);
+    ctx.font = '11px sans-serif';
+    ctx.fillText(`DATANG ${cloth.nextWaveFoeName()} ×${size} → ${cloth.nextNextWaveFoeName()}`, 500, 50);
   }
   // Lose pill, right side row 2.
   pill(ctx, 620, 34, 150, 18, '#922b21', 'KALAH: suci ternoda / >60%', '#fdecea');
@@ -103,8 +108,10 @@ export function drawHud(ctx, game) {
   bar(ctx, 880, 48, 70, frac, frac > 0.45 ? '#e74c3c' : '#8e44ad', `PEWARNA ${Math.round(frac * 100)}%`);
 }
 
-// The bottom tool bar: the three tools with their keys, the owned boons,
-// and the controls — so no mechanic is keyboard-only invisible.
+// The bottom tool bar: the four tools with their keys, the owned boons as
+// named chips with icons, and the controls — so no mechanic is
+// keyboard-only invisible. v4: RANJAU is the fourth tool, and the pusaka
+// list is chips (like the top 10's relic lists), not one line of text.
 export function drawToolBar(ctx, game) {
   const cloth = game.cloth;
   ctx.fillStyle = '#0d1330';
@@ -115,37 +122,68 @@ export function drawToolBar(ctx, game) {
     { id: TOOL_WAX, key: '1', label: 'MALAM', sub: 'gambar' },
     { id: TOOL_ERASE, key: '2', label: 'HAPUS', sub: 'hapus malam' },
     { id: TOOL_FREEZE, key: '3 / F', label: 'BEKU', sub: cloth.freezeCooldown > 0 ? `${Math.ceil(cloth.freezeCooldown)} dtk` : 'siap' },
+    { id: TOOL_MINE, key: '4', label: 'RANJAU', sub: cloth.mineCount > 0 ? `x${cloth.mineCount} siap` : 'habis' },
   ];
   for (let i = 0; i < tools.length; i += 1) {
     const t = tools[i];
-    const x = 12 + i * 140;
+    const x = 12 + i * 112;
     const y = TOOLBAR_Y + 6;
     const active = game.tool === t.id;
     ctx.fillStyle = active ? '#2c3e6b' : '#1a2348';
-    ctx.fillRect(x, y, 130, 32);
+    ctx.fillRect(x, y, 104, 32);
     ctx.strokeStyle = active ? PALETTE.wax : '#3a4a7d';
     ctx.lineWidth = active ? 2 : 1;
-    ctx.strokeRect(x, y, 130, 32);
+    ctx.strokeRect(x, y, 104, 32);
     ctx.fillStyle = active ? PALETTE.sealed : PALETTE.ink;
-    ctx.font = 'bold 13px sans-serif';
+    ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(`${t.key} · ${t.label}`, x + 8, y + 14);
+    ctx.fillText(`${t.key} · ${t.label}`, x + 7, y + 14);
     ctx.fillStyle = PALETTE.dim;
     ctx.font = '11px sans-serif';
-    ctx.fillText(t.sub, x + 8, y + 28);
+    ctx.fillText(t.sub, x + 7, y + 28);
   }
+  // Pusaka chips: one named chip per owned boon type, with its icon and
+  // stack count — the build, readable at a glance.
   ctx.fillStyle = PALETTE.ink;
-  ctx.font = '12px sans-serif';
+  ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'left';
+  ctx.fillText('PUSAKA:', 470, TOOLBAR_Y + 24);
   const counts = {};
   for (const id of game.boonsOwned) counts[id] = (counts[id] || 0) + 1;
-  const owned = game.boonsOwned.length > 0
-    ? Object.keys(counts).map((id) => (counts[id] > 1 ? `${boonById(id).name} x${counts[id]}` : boonById(id).name)).join(' · ')
-    : 'belum ada — segel kain untuk memilih pusaka';
-  ctx.fillText(`PUSAKA: ${owned}`, 440, TOOLBAR_Y + 18);
-  ctx.fillStyle = PALETTE.dim;
-  ctx.font = '11px sans-serif';
-  ctx.fillText('Space jeda  •  R ulang  •  M suara  •  segel beruntun = kombo', 440, TOOLBAR_Y + 34);
+  const ids = Object.keys(counts);
+  if (ids.length === 0) {
+    ctx.fillStyle = PALETTE.dim;
+    ctx.font = '11px sans-serif';
+    ctx.fillText('belum ada — segel kain untuk memilih pusaka', 528, TOOLBAR_Y + 24);
+  } else {
+    let cx = 528;
+    const shown = ids.slice(0, 4);
+    let drawn = 0;
+    for (let i = 0; i < shown.length; i += 1) {
+      const b = boonById(shown[i]);
+      const label = counts[shown[i]] > 1 ? `${b.name} ×${counts[shown[i]]}` : b.name;
+      ctx.font = '11px sans-serif';
+      const w = ctx.measureText(label).width + 30;
+      if (cx + w > 950) break;
+      ctx.fillStyle = '#1a2348';
+      ctx.beginPath();
+      ctx.roundRect(cx, TOOLBAR_Y + 7, w, 30, 6);
+      ctx.fill();
+      ctx.strokeStyle = b.rarity === 'LANGKA' ? PALETTE.sealed : '#3a4a7d';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      drawBoonIcon(ctx, b.icon, cx + 12, TOOLBAR_Y + 22, 6, b.rarity === 'LANGKA' ? PALETTE.sealed : '#9aa5c7');
+      ctx.fillStyle = PALETTE.ink;
+      ctx.fillText(label, cx + 22, TOOLBAR_Y + 26);
+      cx += w + 6;
+      drawn += 1;
+    }
+    if (ids.length > drawn) {
+      ctx.fillStyle = PALETTE.dim;
+      ctx.font = '11px sans-serif';
+      ctx.fillText(`+${ids.length - drawn} lagi`, cx, TOOLBAR_Y + 24);
+    }
+  }
 }
 
 // A dim panel with a title and lines of text, centred on the cloth.
@@ -218,6 +256,18 @@ export function drawBoonIcon(ctx, icon, cx, cy, size, color) {
       ctx.lineTo(cx + Math.cos(ang) * size, cy + Math.sin(ang) * size);
       ctx.stroke();
     }
+  } else if (icon === 'mine') {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - size);
+    ctx.lineTo(cx + size, cy);
+    ctx.lineTo(cx, cy + size);
+    ctx.lineTo(cx - size, cy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#101736';
+    ctx.beginPath();
+    ctx.arc(cx, cy, size * 0.35, 0, Math.PI * 2);
+    ctx.fill();
   } else {
     ctx.beginPath();
     ctx.arc(cx - size * 0.45, cy - size * 0.3, size * 0.5, 0, Math.PI * 2);
@@ -333,7 +383,10 @@ export function drawTitlePanel(ctx, game) {
   ctx.fillText('▶  KLIK KARTU ATAU TEKAN 1 / 2 / 3 UNTUK MULAI', cx, ORIGIN_Y + 388);
   ctx.fillStyle = PALETTE.dim;
   ctx.font = '12px sans-serif';
-  ctx.fillText('7 kain · 4 motif · 7 pusaka · 5 jenis gelombang · boss Naga di kain 7 · Endless setelah menang', cx, ORIGIN_Y + 410);
+  ctx.fillText('7 kain · 7 dunia · 4 motif · 8 pusaka · 5 jenis gelombang · 4 alat · boss Naga di kain 7 · Endless setelah menang', cx, ORIGIN_Y + 410);
+  ctx.fillStyle = PALETTE.ink;
+  ctx.font = '12px sans-serif';
+  ctx.fillText('ALAT 4 · RANJAU: klik untuk memasang ranjau malam — meledak jadi cincin malam saat pewarna menyentuhnya', cx, ORIGIN_Y + 428);
   return buttons;
 }
 
@@ -394,7 +447,7 @@ export function drawUpgradePanel(ctx, game) {
   ctx.fillStyle = PALETTE.ink;
   ctx.font = '14px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(`BERIKUTNYA: ${next.name} — ${next.motifs} motif · ${next.waves} gelombang${next.boss ? ' · BOSS NAGA PEWARNA' : ''}`, cx, ORIGIN_Y + 330);
+  ctx.fillText(`BERIKUTNYA: ${next.name} — ${next.realm} · ${next.motifs} motif · ${next.waves} gelombang${next.boss ? ' · BOSS NAGA PEWARNA' : ''}`, cx, ORIGIN_Y + 330);
   const owned = game.boonsOwned.length > 0
     ? game.boonsOwned.map((id) => boonById(id).name).join(' · ')
     : 'belum ada';

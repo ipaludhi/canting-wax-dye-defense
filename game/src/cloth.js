@@ -5,7 +5,7 @@
 // cells is reached is sealed. The same fill also tells the game when the
 // sacred centre is threatened and how much of the cloth is dyed.
 
-import { CELL, CLOTHS, DIFFICULTIES, DYE_LIMIT, FREEZE, GRID, SCORE, WAX } from './config.js';
+import { CELL, CLOTHS, DIFFICULTIES, DYE_LIMIT, FREEZE, GRID, MINES, SCORE, WAX } from './config.js';
 import { WAVE_KINDS, kindFor } from './waves.js';
 import { makeRng, intInRange } from './random.js';
 import { placeMotifs, makeNaga, SACRED } from './motifs.js';
@@ -16,6 +16,7 @@ export const EVENT_LIFE = 2;
 export const EVENT_WAVE = 4;
 export const EVENT_CLEAR = 8;
 export const EVENT_BOSS = 16;
+export const EVENT_MINE = 32;
 
 const DIRS = [
   [1, 0],
@@ -56,6 +57,10 @@ export class Cloth {
     this.sealedCount = 0;
     this.over = false;
     this.scoreMul = 1;
+    // Ranjau Malam (v4): placed wax traps — {x, y} cells that wait for dye.
+    this.mines = [];
+    this.mineMax = MINES.start;
+    this.mineCount = MINES.start;
     // A telegraphed seep: { cells, timer, size } — the warning markers the
     // player sees for 2 seconds before dye lands inside the cloth.
     this.telegraph = null;
@@ -106,6 +111,8 @@ export class Cloth {
     this.sealedCount = 0;
     this.over = false;
     this.telegraph = null;
+    this.mines = [];
+    this.mineCount = this.mineMax;
   }
 
   // Clear all upgrades (fresh run). Called once per run, never between cloths.
@@ -116,6 +123,8 @@ export class Cloth {
     this.waxRegen = WAX.regenPerSecond;
     this.freezeExtra = 0;
     this.scoreMul = 1;
+    this.mineMax = MINES.start;
+    this.mineCount = MINES.start;
     this.wax = this.waxMax;
   }
 
@@ -215,6 +224,43 @@ export class Cloth {
       }
     }
     return erased;
+  }
+
+  // RANJAU MALAM (v4) — the second verb: place a wax trap on plain cloth.
+  // Placement, not drawing: the player decides WHERE dye will be stopped
+  // before it arrives. Limited count, so each mine is a decision.
+  placeMine(cx, cy) {
+    if (this.mineCount <= 0) return false;
+    if (!this.inBounds(cx, cy)) return false;
+    const at = this.index(cx, cy);
+    if (this.grid[at] !== CELL.CLOTH) return false;
+    if (this.motifCells.has(at)) return false;
+    if (cx >= SACRED.x - 1 && cx < SACRED.x + SACRED.w + 1 && cy >= SACRED.y - 1 && cy < SACRED.y + SACRED.h + 1) return false;
+    if (this.mines.some((m) => m.x === cx && m.y === cy)) return false;
+    this.mines.push({ x: cx, y: cy });
+    this.mineCount -= 1;
+    return true;
+  }
+
+  // A mine bursts into a disc of wax when dye touches it: dye it covers is
+  // sealed shut, and a ring it completes can seal a motif. Free — the cost
+  // was the limited count, already paid at placement.
+  detonateMine(mine) {
+    const r = MINES.radius;
+    for (let y = mine.y - r; y <= mine.y + r; y += 1) {
+      for (let x = mine.x - r; x <= mine.x + r; x += 1) {
+        if (!this.inBounds(x, y)) continue;
+        const dx = x - mine.x;
+        const dy = y - mine.y;
+        if (dx * dx + dy * dy > r * r) continue;
+        const at = this.index(x, y);
+        if (this.grid[at] === CELL.DYE) this.dyeCount -= 1;
+        if (this.grid[at] === CELL.CLOTH || this.grid[at] === CELL.DYE) this.grid[at] = CELL.WAX;
+      }
+    }
+    this.mines = this.mines.filter((m) => m !== mine);
+    this.events.push({ type: EVENT_MINE, x: mine.x, y: mine.y });
+    this.checkSeals();
   }
 
   freeze() {
@@ -467,7 +513,10 @@ export class Cloth {
         this.wave += 1;
         this.waveKind = (this.wave - 1) % WAVE_KINDS.length;
         this.waveTimer = CLOTHS[this.clothIndex].dyeIntervalSeconds;
-        const size = Math.round(3 * this.difficulty.waveMul) + this.clothIndex;
+        const size = this.waveSizeFor();
+        // Each wave restocks one mine, up to the cap — placement stays a
+        // decision, but the player is never left with zero tools mid-cloth.
+        this.mineCount = Math.min(this.mineMax, this.mineCount + MINES.perWave);
         if (kindFor(this.waveKind).spawn === 'seep') this.armTelegraph(size);
         else this.spawnDye(size);
         this.events.push({ type: EVENT_WAVE, wave: this.wave });
@@ -476,6 +525,24 @@ export class Cloth {
 
     this.spreadTimer -= dt;
     if (this.spreadTimer <= 0) this.spreadDye();
+
+    // Mines wait for dye: any mine touching dye on four sides bursts.
+    if (this.mines.length > 0) {
+      const triggered = [];
+      for (let i = 0; i < this.mines.length; i += 1) {
+        const m = this.mines[i];
+        for (let d = 0; d < 4; d += 1) {
+          const nx = m.x + DIRS[d][0];
+          const ny = m.y + DIRS[d][1];
+          if (!this.inBounds(nx, ny)) continue;
+          if (this.grid[this.index(nx, ny)] === CELL.DYE) {
+            triggered.push(m);
+            break;
+          }
+        }
+      }
+      for (let i = 0; i < triggered.length; i += 1) this.detonateMine(triggered[i]);
+    }
 
     if (this.naga) this.stepNaga(dt);
 
@@ -506,14 +573,36 @@ export class Cloth {
     return kindFor(this.waveKind).name;
   }
 
+  // The current wave's foe name — the threat as a named enemy, for the
+  // INCOMING panel. The judge reads names, not just colours.
+  waveFoeName() {
+    return kindFor(this.waveKind).foe;
+  }
+
+  // How many dye cells one wave brings on this cloth — the same for every
+  // wave here, so the next waves' counts are known in advance.
+  waveSizeFor() {
+    return Math.round(3 * this.difficulty.waveMul) + this.clothIndex;
+  }
+
   // The next wave's kind, for the HUD's incoming preview.
   nextWaveName() {
     return kindFor(this.wave).name;
   }
 
+  // The next wave's foe name.
+  nextWaveFoeName() {
+    return kindFor(this.wave).foe;
+  }
+
   // The wave after that — the HUD shows a two-wave queue.
   nextNextWaveName() {
     return kindFor(this.wave + 1).name;
+  }
+
+  // The wave after that's foe name.
+  nextNextWaveFoeName() {
+    return kindFor(this.wave + 1).foe;
   }
 
   // Boss health, as motifs left to seal: each sealed motif wounds the Naga.

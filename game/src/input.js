@@ -7,6 +7,7 @@
 export const TOOL_WAX = 0;
 export const TOOL_ERASE = 1;
 export const TOOL_FREEZE = 2;
+export const TOOL_MINE = 3;
 
 export class Input {
   constructor(canvas) {

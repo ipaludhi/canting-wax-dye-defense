@@ -6,15 +6,16 @@
 // v2 order (shots.json): 1-play is the cover — dense mid-run gameplay, not a
 // menu — then the boss, the upgrade shop, and the title poster.
 
-import { CELL, GRID, SCORE } from './config.js';
+import { CELL, GRID, SCORE, VIEW } from './config.js';
 import { EVENT_CLEAR } from './cloth.js';
 import { boonById } from './boons.js';
+import { TOOL_MINE } from './input.js';
 import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE, SCREEN_UPGRADE, SCREEN_WIN } from './game.js';
 import { SACRED } from './motifs.js';
 
 const STEP = 1 / 60;
 const TITLE_SECONDS = 2;
-const PLAY_SECONDS = 24;
+const PLAY_SECONDS = 10;
 const BOSS_SECONDS = 22;
 const END_SECONDS = 240;
 
@@ -191,11 +192,46 @@ export function stageShot(name, game, seed) {
     return { screen: SCREEN_PLAY };
   }
   if (name === 'play') {
-    if (!playThrough(game, 4, seed)) return { screen: SCREEN_PLAY };
-    // Cloth 5 (index 4): 3 motifs, mid-run — ring them, let the dye in.
-    const traced = fastForwardTraced(game, PLAY_SECONDS, autopilot, 2);
+    // v4: the cover is the BOSS cloth (index 6, Kain Naga) mid-fight — the
+    // densest frame the game has: 4 motifs, the Naga alive, dye at ~30%.
+    // Like the top 10's covers (NIGHT 8/10, WAVE 7/7), the first frame shows
+    // the endgame, not the tutorial.
+    if (!playThrough(game, 6, seed)) return { screen: SCREEN_PLAY };
+    // winPilot (budget 4, sacred first) seals fast enough that 3 motifs are
+    // sealed by ~10s — while the cloth is still on wave 4/5, so the HUD's
+    // DATANG queue (GAP B) is visible in the cover frame. A 26s stage would
+    // reach wave 5/5 and hide the queue.
+    const traced = fastForwardTraced(game, PLAY_SECONDS, winPilot, 3);
     reflectCombo(game, traced.sealedTimes, traced.stagedSeconds);
     game.sealsTotal += game.cloth.sealedCount;
+    // Stage the v4 systems so the cover shows them: dye topped up to ~30%
+    // (a real flood, via the game's own spawns), two mines waiting next to
+    // the flood, a telegraphed seep about to land, and a seal floater
+    // mid-air. Top-up uses spawnVortex: the border is already saturated
+    // after 10s of play, so edge spawns have nowhere to land — vortex rings
+    // land in the interior, where the flood would spread next anyway.
+    const cloth = game.cloth;
+    let topUps = 0;
+    while (cloth.dyeFraction() < 0.28 && topUps < 40) {
+      cloth.spawnVortex(12);
+      topUps += 1;
+    }
+    let placed = 0;
+    for (let y = 1; y < GRID.rows - 1 && placed < 2; y += 1) {
+      for (let x = 1; x < GRID.cols - 1 && placed < 2; x += 1) {
+        if (cloth.grid[y * GRID.cols + x] !== CELL.CLOTH) continue;
+        const nearDye = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => cloth.grid[(y + dy) * GRID.cols + (x + dx)] === CELL.DYE);
+        if (nearDye && cloth.placeMine(x, y)) placed += 1;
+      }
+    }
+    if (cloth.motifs.some((m) => !m.sealed)) cloth.armTelegraph(9);
+    const sealed = cloth.motifs.find((m) => m.sealed);
+    if (sealed) {
+      const cx = (sealed.x + sealed.w / 2) * GRID.cell;
+      const cy = VIEW.hudHeight + (sealed.y + sealed.h / 2) * GRID.cell;
+      game.floaters.add(cx, cy - 10, `+${cloth.sealBase().toLocaleString('id-ID')}`, '#f5d76e', 20);
+    }
+    game.tool = TOOL_MINE;
     game.banner = '';
     game.bannerTime = 0;
     return { screen: SCREEN_PLAY };
@@ -209,7 +245,7 @@ export function stageShot(name, game, seed) {
     if (!clearCloth(game)) return { screen: SCREEN_PLAY };
     game.cloth.score += SCORE.clothClear;
     game.sealsTotal = game.cloth.sealedCount;
-    game.upgradeChoices = [boonById('wide'), boonById('regen'), boonById('life')];
+    game.upgradeChoices = [boonById('mines'), boonById('twin'), boonById('gold')];
     game.maxCombo = 1;
     game.runSeconds = 42;
     game.switchScreen(SCREEN_UPGRADE);

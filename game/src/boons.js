@@ -68,6 +68,15 @@ export const BOONS = [
     flavor: 'Motif tersegel ditimbang emas.',
     maxed: (cloth) => cloth.scoreMul > 1,
   },
+  {
+    id: 'mines',
+    name: 'Ranjau Cadangan',
+    rarity: 'UMUM',
+    icon: 'mine',
+    text: '+2 ranjau per kain.',
+    flavor: 'Ranjau malam cadangan.',
+    maxed: (cloth) => cloth.mineMax >= 7,
+  },
 ];
 
 export function boonById(id) {
@@ -85,6 +94,10 @@ export function applyBoon(cloth, id) {
   else if (id === 'life') cloth.lives = Math.min(5, cloth.lives + 1);
   else if (id === 'twin') cloth.brush = 2;
   else if (id === 'gold') cloth.scoreMul = 1.5;
+  else if (id === 'mines') {
+    cloth.mineMax += 2;
+    cloth.mineCount = Math.min(cloth.mineMax, cloth.mineCount + 2);
+  }
   else return false;
   return true;
 }

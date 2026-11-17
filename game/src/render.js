@@ -7,15 +7,17 @@
 // draws the cloth itself. All coordinates are logical pixels; the canvas is
 // scaled for HiDPI by main.js.
 
-import { CELL, GRID, PALETTE, VIEW } from './config.js';
+import { CELL, CLOTHS, GRID, PALETTE, VIEW } from './config.js';
 import { SACRED } from './motifs.js';
 import { drawBossBar, drawMotifPattern, drawNaga, drawSacred } from './motif-art.js';
 
 const CELL_PX = GRID.cell;
 const ORIGIN_Y = VIEW.hudHeight;
 
-function cellColor(x, y) {
-  return (x + y) % 2 === 0 ? PALETTE.cloth : PALETTE.clothAlt;
+// v4: each cloth is a realm with its own field palette (see config.js).
+function cellColor(cloth, x, y) {
+  const spec = CLOTHS[cloth.clothIndex];
+  return (x + y) % 2 === 0 ? spec.field : spec.fieldAlt;
 }
 
 function dyeColor(cloth, x, y) {
@@ -43,14 +45,16 @@ export function drawCloth(ctx, cloth, time) {
     for (let x = 0; x < GRID.cols; x += 1) {
       const px = x * CELL_PX;
       const py = ORIGIN_Y + y * CELL_PX;
-      ctx.fillStyle = cellColor(x, y);
+      ctx.fillStyle = cellColor(cloth, x, y);
       ctx.fillRect(px, py, CELL_PX, CELL_PX);
     }
   }
-  ctx.fillStyle = 'rgba(245, 215, 110, 0.10)';
+  // v4: the weave reads louder — bigger, brighter kawung dots, so the field
+  // is a texture, not flat dark space, at judge thumbnail size.
+  ctx.fillStyle = 'rgba(245, 215, 110, 0.16)';
   for (let y = 0; y < GRID.rows; y += 2) {
     for (let x = (y % 4 === 0 ? 0 : 1); x < GRID.cols; x += 2) {
-      ctx.fillRect(x * CELL_PX + 9, ORIGIN_Y + y * CELL_PX + 9, 2, 2);
+      ctx.fillRect(x * CELL_PX + 8, ORIGIN_Y + y * CELL_PX + 8, 3, 3);
     }
   }
   ctx.strokeStyle = PALETTE.wax;
@@ -75,7 +79,7 @@ export function drawCloth(ctx, cloth, time) {
         ctx.fillRect(px, py, CELL_PX, CELL_PX);
         ctx.globalAlpha = 1;
         if (isFrontier(cloth, x, y)) {
-          ctx.fillStyle = 'rgba(255, 235, 200, 0.55)';
+          ctx.fillStyle = 'rgba(255, 235, 200, 0.7)';
           ctx.fillRect(px, py, CELL_PX, 3);
           ctx.fillRect(px, py, 3, CELL_PX);
         }
@@ -100,6 +104,35 @@ export function drawCloth(ctx, cloth, time) {
       ctx.lineTo(cxp, cyp + 8);
       ctx.lineTo(cxp - 8, cyp);
       ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Pass 1c: RANJAU MALAM (v4) — placed mines as pulsing gold diamonds with
+  // a ring, so the second mechanic is visible on the cloth, not just in the
+  // toolbar. Red diamonds are the seep warning; gold diamonds are the trap.
+  if (cloth.mines.length > 0) {
+    const pulse = 0.6 + 0.4 * Math.sin(time * 5);
+    for (let i = 0; i < cloth.mines.length; i += 1) {
+      const m = cloth.mines[i];
+      const cxp = m.x * CELL_PX + CELL_PX / 2;
+      const cyp = ORIGIN_Y + m.y * CELL_PX + CELL_PX / 2;
+      ctx.strokeStyle = `rgba(245, 215, 110, ${0.5 + 0.4 * pulse})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cxp, cyp, 11 + 2 * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.sealed;
+      ctx.beginPath();
+      ctx.moveTo(cxp, cyp - 7);
+      ctx.lineTo(cxp + 7, cyp);
+      ctx.lineTo(cxp, cyp + 7);
+      ctx.lineTo(cxp - 7, cyp);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#101736';
+      ctx.beginPath();
+      ctx.arc(cxp, cyp, 2.5, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -160,12 +193,14 @@ export function drawCloth(ctx, cloth, time) {
   }
 
   // Vignette: darken the cloth corners so the centre reads as the focus.
+  // v4: lighter than before (0.18, was 0.28) — the field must stay readable
+  // at thumbnail size, not sink into darkness at the edges.
   const grad = ctx.createRadialGradient(
     (GRID.cols * CELL_PX) / 2, ORIGIN_Y + (GRID.rows * CELL_PX) / 2, 240,
     (GRID.cols * CELL_PX) / 2, ORIGIN_Y + (GRID.rows * CELL_PX) / 2, 620,
   );
   grad.addColorStop(0, 'rgba(8, 12, 32, 0)');
-  grad.addColorStop(1, 'rgba(8, 12, 32, 0.28)');
+  grad.addColorStop(1, 'rgba(8, 12, 32, 0.18)');
   ctx.fillStyle = grad;
   ctx.fillRect(0, ORIGIN_Y, GRID.cols * CELL_PX, GRID.rows * CELL_PX);
 }

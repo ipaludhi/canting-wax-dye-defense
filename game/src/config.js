@@ -72,15 +72,29 @@ export function gradeFor(score, difficultyKey) {
 // behaviour, so a wave reads as a different threat, not a different colour.
 
 // One cloth per entry: waves of dye, motifs to seal, and the boss flag.
+// v4: each cloth is a named realm with its own field palette — the seven
+// cloths read as seven worlds, not seven numbered levels (top-10 lesson:
+// Lanternkeep names its realms, Foldkeeper its chapters). Field colours stay
+// in the indigo family so wax gold and dye still pop on every cloth.
 export const CLOTHS = [
-  { name: 'Kain Perdana', waves: 3, motifs: 2, dyeIntervalSeconds: 2.6, spreadSeconds: 0.55, boss: false },
-  { name: 'Kain Kawung', waves: 4, motifs: 2, dyeIntervalSeconds: 2.4, spreadSeconds: 0.53, boss: false },
-  { name: 'Kain Parang', waves: 4, motifs: 3, dyeIntervalSeconds: 2.3, spreadSeconds: 0.51, boss: false },
-  { name: 'Kain Mega Mendung', waves: 5, motifs: 3, dyeIntervalSeconds: 2.2, spreadSeconds: 0.49, boss: false },
-  { name: 'Kain Ceplok', waves: 5, motifs: 3, dyeIntervalSeconds: 2.1, spreadSeconds: 0.47, boss: false },
-  { name: 'Kain Sogan', waves: 6, motifs: 4, dyeIntervalSeconds: 2.0, spreadSeconds: 0.45, boss: false },
-  { name: 'Kain Naga', waves: 5, motifs: 4, dyeIntervalSeconds: 2.2, spreadSeconds: 0.45, boss: true },
+  { name: 'Kain Perdana', realm: 'Dataran Tenun', field: '#1d2a5e', fieldAlt: '#22316b', waves: 3, motifs: 2, dyeIntervalSeconds: 2.6, spreadSeconds: 0.55, boss: false },
+  { name: 'Kain Kawung', realm: 'Hutan Kawung', field: '#143d3a', fieldAlt: '#17504b', waves: 4, motifs: 2, dyeIntervalSeconds: 2.4, spreadSeconds: 0.53, boss: false },
+  { name: 'Kain Parang', realm: 'Lereng Parang', field: '#3d1e2e', fieldAlt: '#4d2438', waves: 4, motifs: 3, dyeIntervalSeconds: 2.3, spreadSeconds: 0.51, boss: false },
+  { name: 'Kain Mega Mendung', realm: 'Langit Mendung', field: '#232c3d', fieldAlt: '#2b3648', waves: 5, motifs: 3, dyeIntervalSeconds: 2.2, spreadSeconds: 0.49, boss: false },
+  { name: 'Kain Ceplok', realm: 'Taman Ceplok', field: '#1e3d1e', fieldAlt: '#265026', waves: 5, motifs: 3, dyeIntervalSeconds: 2.1, spreadSeconds: 0.47, boss: false },
+  { name: 'Kain Sogan', realm: 'Kota Sogan', field: '#3d2c14', fieldAlt: '#4d3819', waves: 6, motifs: 4, dyeIntervalSeconds: 2.0, spreadSeconds: 0.45, boss: false },
+  { name: 'Kain Naga', realm: 'Sarang Naga', field: '#3d1414', fieldAlt: '#4d1919', waves: 5, motifs: 4, dyeIntervalSeconds: 2.2, spreadSeconds: 0.45, boss: true },
 ];
+
+// Mines: the second verb (v4). A placed mine is a wax trap — it waits, and
+// when dye touches it, it bursts into a ring of wax. Limited count per
+// cloth, +1 per wave, so placement is a decision, not a spammable paint.
+export const MINES = {
+  start: 3,
+  max: 5,
+  radius: 2,
+  perWave: 1,
+};
 
 export const CLOTH_COUNT = CLOTHS.length;
 
