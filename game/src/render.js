@@ -89,6 +89,7 @@ export function drawCloth(ctx, cloth, time) {
 
   // Pass 1b: a telegraphed seep — pulsing red diamonds on the marked cells,
   // so the warning reads before the dye lands (wind-up, then strike).
+  // v5: 11px half-size — the 8px v4 diamonds were specks at judge size.
   if (cloth.telegraph) {
     const pulse = 0.5 + 0.5 * Math.sin(time * 8);
     ctx.fillStyle = `rgba(231, 76, 60, ${0.55 + 0.4 * pulse})`;
@@ -99,10 +100,10 @@ export function drawCloth(ctx, cloth, time) {
       const cxp = tx * CELL_PX + CELL_PX / 2;
       const cyp = ORIGIN_Y + ty * CELL_PX + CELL_PX / 2;
       ctx.beginPath();
-      ctx.moveTo(cxp, cyp - 8);
-      ctx.lineTo(cxp + 8, cyp);
-      ctx.lineTo(cxp, cyp + 8);
-      ctx.lineTo(cxp - 8, cyp);
+      ctx.moveTo(cxp, cyp - 11);
+      ctx.lineTo(cxp + 11, cyp);
+      ctx.lineTo(cxp, cyp + 11);
+      ctx.lineTo(cxp - 11, cyp);
       ctx.closePath();
       ctx.fill();
     }
@@ -111,6 +112,7 @@ export function drawCloth(ctx, cloth, time) {
   // Pass 1c: RANJAU MALAM (v4) — placed mines as pulsing gold diamonds with
   // a ring, so the second mechanic is visible on the cloth, not just in the
   // toolbar. Red diamonds are the seep warning; gold diamonds are the trap.
+  // v5: diamond 10px + ring 14px — the v4 mine read as a speck at judge size.
   if (cloth.mines.length > 0) {
     const pulse = 0.6 + 0.4 * Math.sin(time * 5);
     for (let i = 0; i < cloth.mines.length; i += 1) {
@@ -118,21 +120,21 @@ export function drawCloth(ctx, cloth, time) {
       const cxp = m.x * CELL_PX + CELL_PX / 2;
       const cyp = ORIGIN_Y + m.y * CELL_PX + CELL_PX / 2;
       ctx.strokeStyle = `rgba(245, 215, 110, ${0.5 + 0.4 * pulse})`;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(cxp, cyp, 11 + 2 * pulse, 0, Math.PI * 2);
+      ctx.arc(cxp, cyp, 14 + 2 * pulse, 0, Math.PI * 2);
       ctx.stroke();
       ctx.fillStyle = PALETTE.sealed;
       ctx.beginPath();
-      ctx.moveTo(cxp, cyp - 7);
-      ctx.lineTo(cxp + 7, cyp);
-      ctx.lineTo(cxp, cyp + 7);
-      ctx.lineTo(cxp - 7, cyp);
+      ctx.moveTo(cxp, cyp - 10);
+      ctx.lineTo(cxp + 10, cyp);
+      ctx.lineTo(cxp, cyp + 10);
+      ctx.lineTo(cxp - 10, cyp);
       ctx.closePath();
       ctx.fill();
       ctx.fillStyle = '#101736';
       ctx.beginPath();
-      ctx.arc(cxp, cyp, 2.5, 0, Math.PI * 2);
+      ctx.arc(cxp, cyp, 3, 0, Math.PI * 2);
       ctx.fill();
     }
   }

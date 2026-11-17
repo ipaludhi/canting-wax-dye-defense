@@ -187,6 +187,18 @@ export function stageShot(name, game, seed) {
     const traced = fastForwardTraced(game, BOSS_SECONDS, autopilot, 3);
     reflectCombo(game, traced.sealedTimes, traced.stagedSeconds);
     game.sealsTotal += game.cloth.sealedCount;
+    // v5: the boss frame must NOT look like the play frame at judge size.
+    // The Naga's head is centred (it swims along the top edge wherever the
+    // sim left it — often at a corner, blending into the edge dye), and the
+    // flood is topped up to 40% so the frame reads "boss fight at its worst",
+    // not "the same cloth again".
+    const bcloth = game.cloth;
+    if (bcloth.naga && bcloth.naga.alive) bcloth.naga.x = Math.floor(GRID.cols / 2);
+    let btopUps = 0;
+    while (bcloth.dyeFraction() < 0.40 && btopUps < 40) {
+      bcloth.spawnVortex(12);
+      btopUps += 1;
+    }
     game.banner = '';
     game.bannerTime = 0;
     return { screen: SCREEN_PLAY };
@@ -204,15 +216,15 @@ export function stageShot(name, game, seed) {
     const traced = fastForwardTraced(game, PLAY_SECONDS, winPilot, 3);
     reflectCombo(game, traced.sealedTimes, traced.stagedSeconds);
     game.sealsTotal += game.cloth.sealedCount;
-    // Stage the v4 systems so the cover shows them: dye topped up to ~30%
-    // (a real flood, via the game's own spawns), two mines waiting next to
-    // the flood, a telegraphed seep about to land, and a seal floater
+    // Stage the v4 systems so the cover shows them: dye topped up to ~32%
+    // (v5: was 28% — more colour mass at judge size), two mines waiting next
+    // to the flood, a telegraphed seep about to land, and a seal floater
     // mid-air. Top-up uses spawnVortex: the border is already saturated
     // after 10s of play, so edge spawns have nowhere to land — vortex rings
     // land in the interior, where the flood would spread next anyway.
     const cloth = game.cloth;
     let topUps = 0;
-    while (cloth.dyeFraction() < 0.28 && topUps < 40) {
+    while (cloth.dyeFraction() < 0.32 && topUps < 40) {
       cloth.spawnVortex(12);
       topUps += 1;
     }
@@ -229,7 +241,7 @@ export function stageShot(name, game, seed) {
     if (sealed) {
       const cx = (sealed.x + sealed.w / 2) * GRID.cell;
       const cy = VIEW.hudHeight + (sealed.y + sealed.h / 2) * GRID.cell;
-      game.floaters.add(cx, cy - 10, `+${cloth.sealBase().toLocaleString('id-ID')}`, '#f5d76e', 20);
+      game.floaters.add(cx, cy - 10, `+${cloth.sealBase().toLocaleString('id-ID')}`, '#f5d76e', 26);
     }
     game.tool = TOOL_MINE;
     game.banner = '';

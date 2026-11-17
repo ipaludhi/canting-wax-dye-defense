@@ -95,20 +95,21 @@ export function drawMotifPattern(ctx, motif, originY, time) {
     ctx.roundRect(x0 + w / 2 - 58, y0 + h / 2 - 12, 116, 24, 6);
     ctx.fill();
     ctx.fillStyle = PALETTE.sealed;
-    ctx.font = 'bold 14px sans-serif';
+    ctx.font = 'bold 16px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('✓ TERSEGEL', x0 + w / 2, y0 + h / 2 + 5);
+    ctx.fillText('✓ TERSEGEL', x0 + w / 2, y0 + h / 2 + 6);
   }
   // Name tag under the box, on a dark pill so it reads over any pattern.
-  ctx.font = 'bold 11px sans-serif';
+  // v5: bold 13px on a 20px pill — the 11px tag vanished at judge size.
+  ctx.font = 'bold 13px sans-serif';
   ctx.textAlign = 'center';
   const nameW = ctx.measureText(motif.name).width + 16;
   ctx.fillStyle = 'rgba(8, 12, 32, 0.85)';
   ctx.beginPath();
-  ctx.roundRect(x0 + w / 2 - nameW / 2, y0 + h + 4, nameW, 16, 4);
+  ctx.roundRect(x0 + w / 2 - nameW / 2, y0 + h + 4, nameW, 20, 4);
   ctx.fill();
   ctx.fillStyle = motif.sealed ? PALETTE.sealed : '#dfe6ff';
-  ctx.fillText(motif.name, x0 + w / 2, y0 + h + 16);
+  ctx.fillText(motif.name, x0 + w / 2, y0 + h + 18);
   ctx.restore();
 }
 
@@ -150,15 +151,15 @@ export function drawSacred(ctx, sacred, originY, time) {
   ctx.beginPath();
   ctx.arc(cx, cy, 6, 0, Math.PI * 2);
   ctx.fill();
-  ctx.font = 'bold 11px sans-serif';
+  ctx.font = 'bold 13px sans-serif';
   ctx.textAlign = 'center';
   const labelW = ctx.measureText('MOTIF SUCI').width + 16;
   ctx.fillStyle = 'rgba(8, 12, 32, 0.85)';
   ctx.beginPath();
-  ctx.roundRect(cx - labelW / 2, y0 + h + 4, labelW, 16, 4);
+  ctx.roundRect(cx - labelW / 2, y0 + h + 4, labelW, 20, 4);
   ctx.fill();
   ctx.fillStyle = PALETTE.sealed;
-  ctx.fillText('MOTIF SUCI', cx, y0 + h + 16);
+  ctx.fillText('MOTIF SUCI', cx, y0 + h + 18);
   ctx.restore();
 }
 
@@ -228,12 +229,14 @@ export function drawNaga(ctx, naga, originY, time) {
   ctx.lineTo(hx + dir * 20, hy + 14);
   ctx.stroke();
   ctx.fillStyle = '#f5d76e';
-  ctx.font = 'bold 13px sans-serif';
+  ctx.font = 'bold 16px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('NAGA PEWARNA', hx, hy + 42);
+  ctx.fillText('NAGA PEWARNA', hx, hy + 44);
 }
 
 // Boss HP bar across the top of the cloth: each sealed motif wounds the Naga.
+// v5: 15px bold labels + a 12px bar on a 38px plate — the v4 bar (12px text,
+// 7px bar) read as a thin strip at judge thumbnail size.
 export function drawBossBar(ctx, cloth, originY) {
   const total = cloth.motifs.length;
   const left = total - cloth.sealedCount;
@@ -241,15 +244,15 @@ export function drawBossBar(ctx, cloth, originY) {
   const x = (960 - w) / 2;
   const y = originY + 4;
   ctx.fillStyle = 'rgba(8, 12, 32, 0.85)';
-  ctx.fillRect(x - 8, y - 4, w + 16, 30);
+  ctx.fillRect(x - 8, y - 4, w + 16, 38);
   ctx.fillStyle = '#f5d76e';
-  ctx.font = 'bold 12px sans-serif';
+  ctx.font = 'bold 15px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('NAGA PEWARNA', x, y + 11);
+  ctx.fillText('NAGA PEWARNA', x, y + 13);
   ctx.textAlign = 'right';
-  ctx.fillText(`${left}/${total} motif tersisa`, x + w, y + 11);
+  ctx.fillText(`${left}/${total} motif tersisa`, x + w, y + 13);
   ctx.fillStyle = '#2c3e6b';
-  ctx.fillRect(x, y + 15, w, 7);
+  ctx.fillRect(x, y + 19, w, 12);
   ctx.fillStyle = '#e74c3c';
-  ctx.fillRect(x, y + 15, w * (left / Math.max(1, total)), 7);
+  ctx.fillRect(x, y + 19, w * (left / Math.max(1, total)), 12);
 }

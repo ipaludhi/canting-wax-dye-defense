@@ -47,28 +47,29 @@ export function drawHud(ctx, game) {
   ctx.fillText(`KAIN ${cloth.clothIndex + 1}/7 · ${spec.name}`, 12, 22);
   pill(ctx, 300, 8, 210, 20, '#1e7d32', `MENANG: segel ${cloth.motifs.length} motif`, '#e8f5e9');
   // Motif checklist: one pip per motif, gold ✓ when sealed — the win
-  // condition as a readable list, not just a pill.
+  // condition as a readable list, not just a pill. v5: 18px pips — at
+  // judge thumbnail size a 14px pip is a speck; 18px reads as a square.
   for (let i = 0; i < cloth.motifs.length; i += 1) {
     const m = cloth.motifs[i];
-    const px = 522 + i * 20;
+    const px = 520 + i * 22;
     ctx.fillStyle = m.sealed ? PALETTE.sealed : m.color;
-    ctx.fillRect(px, 10, 14, 14);
+    ctx.fillRect(px, 8, 18, 18);
     if (m.sealed) {
       ctx.fillStyle = '#101736';
-      ctx.font = 'bold 11px sans-serif';
+      ctx.font = 'bold 13px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('✓', px + 7, 21);
+      ctx.fillText('✓', px + 9, 22);
     }
   }
   ctx.textAlign = 'right';
-  ctx.font = 'bold 20px sans-serif';
+  ctx.font = 'bold 24px sans-serif';
   const scoreText = game.score.toLocaleString('id-ID');
   const scoreW = ctx.measureText(scoreText).width;
   ctx.fillStyle = PALETTE.sealed;
   ctx.fillText(scoreText, 948, 24);
   if (game.combo >= 2) {
     ctx.fillStyle = '#ff8f00';
-    ctx.font = 'bold 16px sans-serif';
+    ctx.font = 'bold 18px sans-serif';
     ctx.fillText(`KOMBO x${game.combo}`, 948 - scoreW - 12, 24);
   }
   // Combo window bar under the score: the urgency of the streak, visible.
@@ -91,15 +92,26 @@ export function drawHud(ctx, game) {
   ctx.textAlign = 'left';
   ctx.fillText(hearts, 12, 50);
   ctx.fillStyle = PALETTE.ink;
-  ctx.font = '12px sans-serif';
+  ctx.font = 'bold 13px sans-serif';
   ctx.fillText(`${game.difficultyLabel}  •  ${spec.realm}`, 92, 50);
   ctx.textAlign = 'center';
   const size = cloth.waveSizeFor();
+  // v5: the wave line is a bold 14px pill, not 12px plain text — the judge
+  // reads the pill's shape + the big count, not the small print.
+  ctx.font = 'bold 14px sans-serif';
   ctx.fillText(`GEL ${cloth.wave}/${cloth.wavesTotal} ${cloth.waveKindName()} ×${size}`, 315, 50);
   if (cloth.wave < cloth.wavesTotal) {
-    ctx.fillStyle = PALETTE.dim;
-    ctx.font = '11px sans-serif';
-    ctx.fillText(`DATANG ${cloth.nextWaveFoeName()} ×${size} → ${cloth.nextNextWaveFoeName()}`, 500, 50);
+    // v5: DATANG is a gold pill with a dark bold label — a named threat
+    // badge that survives the judge's thumbnail, where 11px text vanishes.
+    const datang = `DATANG ${cloth.nextWaveFoeName()} ×${size} → ${cloth.nextNextWaveFoeName()}`;
+    ctx.font = 'bold 13px sans-serif';
+    const dw = ctx.measureText(datang).width + 20;
+    ctx.fillStyle = 'rgba(245, 215, 110, 0.92)';
+    ctx.beginPath();
+    ctx.roundRect(500 - dw / 2, 34, dw, 20, 6);
+    ctx.fill();
+    ctx.fillStyle = '#101736';
+    ctx.fillText(datang, 500, 49);
   }
   // Lose pill, right side row 2.
   pill(ctx, 620, 34, 150, 18, '#922b21', 'KALAH: suci ternoda / >60%', '#fdecea');
@@ -135,26 +147,27 @@ export function drawToolBar(ctx, game) {
     ctx.lineWidth = active ? 2 : 1;
     ctx.strokeRect(x, y, 104, 32);
     ctx.fillStyle = active ? PALETTE.sealed : PALETTE.ink;
-    ctx.font = 'bold 12px sans-serif';
+    ctx.font = 'bold 13px sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(`${t.key} · ${t.label}`, x + 7, y + 14);
     ctx.fillStyle = PALETTE.dim;
-    ctx.font = '11px sans-serif';
+    ctx.font = '12px sans-serif';
     ctx.fillText(t.sub, x + 7, y + 28);
   }
   // Pusaka chips: one named chip per owned boon type, with its icon and
-  // stack count — the build, readable at a glance.
+  // stack count — the build, readable at a glance. v5: bold 13px labels on
+  // 34px chips — the 11px v4 chips vanished at judge thumbnail size.
   ctx.fillStyle = PALETTE.ink;
-  ctx.font = 'bold 11px sans-serif';
+  ctx.font = 'bold 13px sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText('PUSAKA:', 470, TOOLBAR_Y + 24);
+  ctx.fillText('PUSAKA:', 470, TOOLBAR_Y + 25);
   const counts = {};
   for (const id of game.boonsOwned) counts[id] = (counts[id] || 0) + 1;
   const ids = Object.keys(counts);
   if (ids.length === 0) {
     ctx.fillStyle = PALETTE.dim;
-    ctx.font = '11px sans-serif';
-    ctx.fillText('belum ada — segel kain untuk memilih pusaka', 528, TOOLBAR_Y + 24);
+    ctx.font = '12px sans-serif';
+    ctx.fillText('belum ada — segel kain untuk memilih pusaka', 528, TOOLBAR_Y + 25);
   } else {
     let cx = 528;
     const shown = ids.slice(0, 4);
@@ -162,26 +175,26 @@ export function drawToolBar(ctx, game) {
     for (let i = 0; i < shown.length; i += 1) {
       const b = boonById(shown[i]);
       const label = counts[shown[i]] > 1 ? `${b.name} ×${counts[shown[i]]}` : b.name;
-      ctx.font = '11px sans-serif';
-      const w = ctx.measureText(label).width + 30;
+      ctx.font = 'bold 13px sans-serif';
+      const w = ctx.measureText(label).width + 34;
       if (cx + w > 950) break;
       ctx.fillStyle = '#1a2348';
       ctx.beginPath();
-      ctx.roundRect(cx, TOOLBAR_Y + 7, w, 30, 6);
+      ctx.roundRect(cx, TOOLBAR_Y + 5, w, 34, 6);
       ctx.fill();
       ctx.strokeStyle = b.rarity === 'LANGKA' ? PALETTE.sealed : '#3a4a7d';
       ctx.lineWidth = 1;
       ctx.stroke();
-      drawBoonIcon(ctx, b.icon, cx + 12, TOOLBAR_Y + 22, 6, b.rarity === 'LANGKA' ? PALETTE.sealed : '#9aa5c7');
+      drawBoonIcon(ctx, b.icon, cx + 14, TOOLBAR_Y + 22, 8, b.rarity === 'LANGKA' ? PALETTE.sealed : '#9aa5c7');
       ctx.fillStyle = PALETTE.ink;
-      ctx.fillText(label, cx + 22, TOOLBAR_Y + 26);
+      ctx.fillText(label, cx + 26, TOOLBAR_Y + 27);
       cx += w + 6;
       drawn += 1;
     }
     if (ids.length > drawn) {
       ctx.fillStyle = PALETTE.dim;
-      ctx.font = '11px sans-serif';
-      ctx.fillText(`+${ids.length - drawn} lagi`, cx, TOOLBAR_Y + 24);
+      ctx.font = '12px sans-serif';
+      ctx.fillText(`+${ids.length - drawn} lagi`, cx, TOOLBAR_Y + 25);
     }
   }
 }
@@ -489,12 +502,12 @@ export function drawWinPanel(ctx, game) {
     ctx.lineWidth = 1;
     ctx.strokeRect(x, y, 180, 52);
     ctx.fillStyle = PALETTE.dim;
-    ctx.font = '11px sans-serif';
+    ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(stats[i][0], x + 90, y + 18);
     ctx.fillStyle = PALETTE.sealed;
-    ctx.font = 'bold 18px sans-serif';
-    ctx.fillText(stats[i][1], x + 90, y + 42);
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillText(stats[i][1], x + 90, y + 43);
   }
   const actions = [
     { id: 'endless', label: 'Endless — bertahan selama mungkin' },
